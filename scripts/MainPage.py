@@ -3,7 +3,6 @@ from Pages import AdminPage, UserPage
 import sqlite3 
 import hashlib
 
-
 class LoginPage():
     def __init__(self):
         pass
@@ -46,11 +45,13 @@ class MainPage():
 
     def run(self):
         self.init_session_state()
-        self.show_main_page()
-
+        self.show_main_page()        
     def show_main_page(self):
         if not st.session_state['authentication_status']:
-            st.title("可视化网站")
+            '''# Welcome TDvis !🎉
+            '''
+            '''_化学实验中心数据可视化网站_'''
+
             if st.button("登录"):
                 login_page = LoginPage()
                 login_page.run()

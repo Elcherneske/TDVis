@@ -37,7 +37,7 @@ class AdminPage():
         config = {
             "username": st.column_config.TextColumn("用户名"),
             "password": st.column_config.TextColumn("密码"),
-            "role": st.column_config.SelectboxColumn("角色", options=["管理员", "普通用户"]),
+            "role": st.column_config.TextColumn("角色"),
             "is_selected": st.column_config.CheckboxColumn("是否删除")
         }
 

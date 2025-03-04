@@ -1,5 +1,7 @@
 import streamlit as st
 from .ShowPage import ShowPage
+import os
+import pandas as pd
 
 class UserPage():
     def __init__(self):
@@ -10,20 +12,35 @@ class UserPage():
         self.show_user_page()
 
     def show_user_page(self):
-
+        
         with st.sidebar:
             if st.button("退出"):
                 st.session_state['authentication_status'] = None
                 st.rerun()
+            
         
         if st.session_state['user_select_file'] is None:
             # todo: 这里用一个dataframe把文件列表展示出来，要求一次只展示10个，可以通过滚动或者翻页展示更多
             st.title("用户页面")
             st.write("请选择文件")
-            files = ["文件1", "文件2", "文件3", "文件4", "文件5", "文件6", "文件7", "文件8", "文件9", "文件10"]
-            selected_file = st.radio("选择文件", files)
+
+            files_path = r'd:\desktop\ZJU_CHEM\TDVis\files'
+            files = os.listdir(files_path)
+            
+            # 创建DataFrame
+            df = pd.DataFrame(files, columns=["file_name"])
+            df.index = df.index + 1
+            df["file_select"] = False
+            config = {
+                "file_name": st.column_config.TextColumn("文件名"),
+                "file_select": st.column_config.CheckboxColumn("是否选择")
+            }
+            selec_df = st.data_editor(df, column_config=config, key="user_data_editor",width=800)
+            # 使用滑动展示
+            df = df.head(10)  # 只展示前10个文件
+            selected_files = []
             if st.button("选择文件"):
-                st.session_state['user_select_file'] = selected_file
+                st.session_state['user_select_file'] = selec_df[selec_df['file_select'] == True]['file_name'].tolist()
                 st.rerun()
         else:
             show_page = ShowPage()
