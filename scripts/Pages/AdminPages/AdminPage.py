@@ -30,9 +30,6 @@ class AdminPage():
         c.execute("SELECT username, role FROM users")
         users = c.fetchall()
 
-        # Close the connection
-        conn.close()
-
         #Create a DataFrame from the fetched data
         df = pd.DataFrame(users, columns=["username", "role"])
         df["is_selected"] = False
@@ -41,15 +38,30 @@ class AdminPage():
             "username": st.column_config.TextColumn("用户名"),
             "password": st.column_config.TextColumn("密码"),
             "role": st.column_config.SelectboxColumn("角色", options=["管理员", "普通用户"]),
-            "is_selected": st.column_config.CheckboxColumn("是否")
+            "is_selected": st.column_config.CheckboxColumn("是否删除")
         }
 
-        st.data_editor(df, column_config=config)
+        edited_df = st.data_editor(df, column_config=config, key="user_data_editor")
 
-        # 删除用户按钮
-        if st.button("修改用户"):
-            st.write("修改用户")
+        # Close the connection
+        conn.close()
 
+        # 删除用户按钮,而后重新添加,即可完成修改
+        if st.button("删除用户"):
+            # Connect to the database
+            conn = sqlite3.connect('/D:/desktop/ZJU_CHEM/TDVis/scripts/Pages/AdminPages/userinfo.db')
+            c = conn.cursor()
+
+            # Delete selected users
+            for index, row in edited_df.iterrows():
+                if row["is_selected"]:
+                    c.execute("DELETE FROM users WHERE username = ?", (row["username"],))
+
+            conn.commit()
+            conn.close()
+            st.success("用户删除成功!")
+
+        # 添加用户表单
         add_form = st.form("add_form",clear_on_submit=True)
         username=add_form.text_input("用户名")
         password=add_form.text_input("密码",type="password")
@@ -72,12 +84,13 @@ class AdminPage():
             # Check if the username already exists
             c.execute("SELECT * FROM users WHERE username = ?", (username,))
             if c.fetchone():
-                st.error("用户名已存在")
+                st.error("用户名已存在!")
             else:
                 # Insert the new user
                 c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
                           (username, hashed_password, role))
-                st.success("用户添加成功")
+                st.success("用户添加成功!")
+            st.rerun
             
             # Commit the changes and close the connection
             conn.commit()

@@ -38,7 +38,7 @@ class LoginPage():
                     else:
                         st.write("用户名或密码错误")
                 else:
-                    st.write("用户名不存在")
+                    st.write("该用户不存在")
 
 class MainPage():
     def __init__(self):
