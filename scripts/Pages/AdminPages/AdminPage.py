@@ -1,5 +1,9 @@
 import streamlit as st
 import pandas as pd
+import sqlite3
+import hashlib
+
+
 class AdminPage():
     def __init__(self):
         pass
@@ -18,16 +22,24 @@ class AdminPage():
         st.title("管理员页面")
 
         # 用户列表
-        df = pd.DataFrame(
-            {
-                "username": ["admin", "user1", "user2"],
-                "role": ["管理员", "普通用户", "普通用户"],
-                "is_selected": [False, False, False]
-            }
-        )
+        # Connect to the database
+        conn = sqlite3.connect('/D:/desktop/ZJU_CHEM/TDVis/scripts/Pages/AdminPages/userinfo.db')
+        c = conn.cursor()
+
+        # Fetch all users from the database
+        c.execute("SELECT username, role FROM users")
+        users = c.fetchall()
+
+        # Close the connection
+        conn.close()
+
+        #Create a DataFrame from the fetched data
+        df = pd.DataFrame(users, columns=["username", "role"])
+        df["is_selected"] = False
 
         config = {
             "username": st.column_config.TextColumn("用户名"),
+            "password": st.column_config.TextColumn("密码"),
             "role": st.column_config.SelectboxColumn("角色", options=["管理员", "普通用户"]),
             "is_selected": st.column_config.CheckboxColumn("是否")
         }
@@ -38,10 +50,36 @@ class AdminPage():
         if st.button("修改用户"):
             st.write("修改用户")
 
-        add_form = st.form("add_form")
-        add_form.text_input("用户名")
-        add_form.selectbox("角色", options=["管理员", "普通用户"])
+        add_form = st.form("add_form",clear_on_submit=True)
+        username=add_form.text_input("用户名")
+        password=add_form.text_input("密码",type="password")
+        role=add_form.selectbox("角色", options=["管理员", "普通用户"])
 
         # 添加用户按钮
         if add_form.form_submit_button("添加用户"):
             st.write("添加用户")
+            # Hash the password
+            hashed_password = hashlib.sha256(password.encode()).hexdigest()
+
+            # Connect to the database
+            conn = sqlite3.connect('/D:/desktop/ZJU_CHEM/TDVis/scripts/Pages/AdminPages/userinfo.db')
+            c = conn.cursor()
+
+            # Create table if it doesn't exist
+            c.execute('''CREATE TABLE IF NOT EXISTS users
+                         (username TEXT PRIMARY KEY, password TEXT, role TEXT)''')
+
+            # Check if the username already exists
+            c.execute("SELECT * FROM users WHERE username = ?", (username,))
+            if c.fetchone():
+                st.error("用户名已存在")
+            else:
+                # Insert the new user
+                c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+                          (username, hashed_password, role))
+                st.success("用户添加成功")
+            
+            # Commit the changes and close the connection
+            conn.commit()
+            c.close()
+            conn.close()
