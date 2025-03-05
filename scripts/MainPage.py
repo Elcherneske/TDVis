@@ -19,7 +19,7 @@ class LoginPage():
             password = st.text_input("密码", type="password")
             if st.button("login"):
                 # todo: 使用数据库验证用户名和密码
-                conn = sqlite3.connect('/D:/desktop/ZJU_CHEM/TDVis/scripts/Pages/AdminPages/userinfo.db')
+                conn = sqlite3.connect('Pages/AdminPages/userinfo.db')
                 cursor = conn.cursor()
                 cursor.execute("SELECT * FROM users WHERE username=?", (username,))
                 user = cursor.fetchone()

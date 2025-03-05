@@ -46,20 +46,24 @@ class AdminPage():
         # Close the connection
         conn.close()
 
-        # 删除用户按钮,而后重新添加,即可完成修改
-        if st.button("删除用户"):
+        # 更新和删除用户按钮
+        if st.button("更新和删除用户"):
             # Connect to the database
-            conn = sqlite3.connect('/D:/desktop/ZJU_CHEM/TDVis/scripts/Pages/AdminPages/userinfo.db')
+            conn = sqlite3.connect('userinfo.db')
             c = conn.cursor()
 
-            # Delete selected users
+            # Update or delete users based on the DataFrame content
             for index, row in edited_df.iterrows():
                 if row["is_selected"]:
                     c.execute("DELETE FROM users WHERE username = ?", (row["username"],))
+                else:
+                    c.execute("UPDATE users SET username = ?, role = ? WHERE username = ?", 
+                              (row["username"], row["role"], row["username"]))
 
             conn.commit()
             conn.close()
-            st.success("用户删除成功!")
+            st.success("用户更新和删除成功!")
+            st.rerun
 
         # 添加用户表单
         add_form = st.form("add_form",clear_on_submit=True)
@@ -74,7 +78,7 @@ class AdminPage():
             hashed_password = hashlib.sha256(password.encode()).hexdigest()
 
             # Connect to the database
-            conn = sqlite3.connect('/D:/desktop/ZJU_CHEM/TDVis/scripts/Pages/AdminPages/userinfo.db')
+            conn = sqlite3.connect('userinfo.db')
             c = conn.cursor()
 
             # Create table if it doesn't exist

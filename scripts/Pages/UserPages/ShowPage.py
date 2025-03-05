@@ -15,5 +15,7 @@ class ShowPage():
             if st.button("重新选择"):
                 st.session_state['user_select_file'] = None
                 st.rerun()
+            if st.button("链接其他斜面"):
+                st.write("链接其他斜面按钮被点击")
 
         st.line_chart([1, 2, 3, 4, 5])

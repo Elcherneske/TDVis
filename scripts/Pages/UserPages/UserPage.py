@@ -23,10 +23,14 @@ class UserPage():
             # todo: 这里用一个dataframe把文件列表展示出来，要求一次只展示10个，可以通过滚动或者翻页展示更多
             st.title("用户页面")
             st.write("请选择文件")
-
-            files_path = r'd:\desktop\ZJU_CHEM\TDVis\files'
+            files_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'files')
             files = os.listdir(files_path)
-            
+            username = st.session_state.get('authentication_username', '')
+            user_files_path = os.path.join(files_path, username)
+            if os.path.exists(user_files_path):
+                files = os.listdir(user_files_path)
+            else:
+                files = []
             # 创建DataFrame
             df = pd.DataFrame(files, columns=["file_name"])
             df.index = df.index + 1
