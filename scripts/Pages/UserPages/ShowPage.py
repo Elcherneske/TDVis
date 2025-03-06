@@ -1,8 +1,8 @@
 import streamlit as st
 
 class ShowPage():
-    def __init__(self):
-        pass
+    def __init__(self, args):
+        self.args = args
 
     def run(self):
         self.show_show_page()

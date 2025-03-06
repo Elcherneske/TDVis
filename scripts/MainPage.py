@@ -1,11 +1,11 @@
 import streamlit as st
 from Pages import AdminPage, UserPage
-import sqlite3 
-import hashlib
+from Args import Args
+from DBUtils import DBUtils
 
 class LoginPage():
-    def __init__(self):
-        pass
+    def __init__(self, args):
+        self.args = args
 
     def run(self):
         self.show_login_page()
@@ -18,14 +18,10 @@ class LoginPage():
             username = st.text_input("用户名")
             password = st.text_input("密码", type="password")
             if st.button("login"):
-                # todo: 使用数据库验证用户名和密码
-                conn = sqlite3.connect('Pages/AdminPages/userinfo.db')
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM users WHERE username=?", (username,))
-                user = cursor.fetchone()
-                cursor.close()
-                conn.close()
+                db_utils = DBUtils(self.args)
+                user = db_utils.user_login(username, password)
                 if user:
+                    #todo: 这里需要判断用户角色
                     stored_password = user[1]  # Assuming the password is the second column in the users table
                     st.session_state['authentication_role']= user[2]
                     hashed_password = hashlib.sha256(password.encode()).hexdigest()
@@ -41,11 +37,13 @@ class LoginPage():
 
 class MainPage():
     def __init__(self):
+        self.args = Args()
         pass
 
     def run(self):
         self.init_session_state()
-        self.show_main_page()        
+        self.show_main_page()     
+
     def show_main_page(self):
         if not st.session_state['authentication_status']:
             '''# Welcome TDvis !🎉
@@ -53,7 +51,7 @@ class MainPage():
             '''_化学实验中心数据可视化网站_'''
 
             if st.button("登录"):
-                login_page = LoginPage()
+                login_page = LoginPage(self.args)
                 login_page.run()
         else:
             if st.session_state['authentication_role']=="管理员":
@@ -66,7 +64,6 @@ class MainPage():
     def init_session_state(self):
         if 'authentication_status' not in st.session_state:
             st.session_state['authentication_status'] = False
-        
         if 'authentication_username' not in st.session_state:
             st.session_state['authentication_username'] = ""
         if 'authentication_role' not in st.session_state:

@@ -4,8 +4,8 @@ import os
 import pandas as pd
 
 class UserPage():
-    def __init__(self):
-        pass
+    def __init__(self, args):
+        self.args = args
 
     def run(self):
         self.init_session_state()
@@ -18,7 +18,6 @@ class UserPage():
                 st.session_state['authentication_status'] = None
                 st.rerun()
             
-        
         if st.session_state['user_select_file'] is None:
             # todo: 这里用一个dataframe把文件列表展示出来，要求一次只展示10个，可以通过滚动或者翻页展示更多
             st.title("用户页面")

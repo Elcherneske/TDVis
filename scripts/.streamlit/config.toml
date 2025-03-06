@@ -5,3 +5,11 @@ backgroundColor="#FFFFFF"
 secondaryBackgroundColor="#F0F2F6"
 textColor="#31333F"
 font="monospace,sans serif"
+
+[Database]
+mode="postgresql"
+host="localhost"
+port="5432"
+dbname="postgres"
+user="postgres"
+password="postgres"
