@@ -1,6 +1,11 @@
 import streamlit as st
 from Pages import AdminPage, UserPage
+<<<<<<< Updated upstream
 import sqlite3 
+=======
+from Args import Args
+from DBUtils import DBUtils
+>>>>>>> Stashed changes
 import hashlib
 
 class LoginPage():
@@ -26,7 +31,11 @@ class LoginPage():
                 cursor.close()
                 conn.close()
                 if user:
+<<<<<<< Updated upstream
                     stored_password = user[1]  # Assuming the password is the second column in the users table
+=======
+                    stored_password = user[1]  # 暂时假设,会将密码存储到第二列
+>>>>>>> Stashed changes
                     st.session_state['authentication_role']= user[2]
                     hashed_password = hashlib.sha256(password.encode()).hexdigest()
                     if hashed_password == stored_password:
@@ -56,7 +65,7 @@ class MainPage():
                 login_page = LoginPage()
                 login_page.run()
         else:
-            if st.session_state['authentication_role']=="管理员":
+            if st.session_state['authentication_role']=="admin":
                 admin_page = AdminPage()
                 admin_page.run()
             else:

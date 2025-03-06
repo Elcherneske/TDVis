@@ -1,7 +1,11 @@
 import streamlit as st
 import pandas as pd
+<<<<<<< Updated upstream
 import sqlite3
 import hashlib
+=======
+from DBUtils import DBUtils
+>>>>>>> Stashed changes
 
 
 class AdminPage():
@@ -26,6 +30,7 @@ class AdminPage():
         conn = sqlite3.connect('/D:/desktop/ZJU_CHEM/TDVis/scripts/Pages/AdminPages/userinfo.db')
         c = conn.cursor()
 
+<<<<<<< Updated upstream
         # Fetch all users from the database
         c.execute("SELECT username, role FROM users")
         users = c.fetchall()
@@ -100,3 +105,24 @@ class AdminPage():
             conn.commit()
             c.close()
             conn.close()
+=======
+            edited_df = st.data_editor(users, column_config=config, key="user_data_editor")
+            # 更新和删除用户按钮
+            if st.button("更新和删除用户"):
+                #todo:这里需要判断更新还是删除，同时要判断哪些要更新，哪些要删除，在调用对应的接口
+                
+                db_utils.update_user(edited_df)
+                st.rerun()
+            
+        with add_tab:
+            # 添加用户表单
+            add_form = st.form("add_form", clear_on_submit=True)
+            username = add_form.text_input("用户名")
+            password = add_form.text_input("密码", type="password")
+            role = add_form.selectbox("角色", options=["admin", "user"])
+
+            # 添加用户按钮
+            if add_form.form_submit_button("添加用户"):
+                db_utils.user_register(username, password, role)
+                st.rerun()
+>>>>>>> Stashed changes

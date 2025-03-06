@@ -4,5 +4,4 @@ pandas
 plotly
 matplotlib
 os
-sqlite3
 hashlib
