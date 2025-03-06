@@ -51,8 +51,6 @@ class PostgreUtils:
         """
         if table_name == "users" and not columns:
             columns = ["id SERIAL PRIMARY KEY", "username VARCHAR(100)", "password VARCHAR(100)", "role VARCHAR(50)", "file_path VARCHAR(255)"]
-        if table_name == "users" and not columns:
-            columns = ["id SERIAL PRIMARY KEY", "username VARCHAR(100)", "password VARCHAR(100)", "role VARCHAR(50)", "file_path VARCHAR(255)"]
         try:
             columns_str = ", ".join(columns)
             create_table_query = f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_str})"

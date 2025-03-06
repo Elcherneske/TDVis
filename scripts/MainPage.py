@@ -2,6 +2,7 @@ import streamlit as st
 from Pages import AdminPage, UserPage
 from Args import Args
 from DBUtils import DBUtils
+import hashlib
 
 class LoginPage():
     def __init__(self):
@@ -10,7 +11,6 @@ class LoginPage():
     def run(self):
         self.show_login_page()
     
-    @st.dialog("login")
     def show_login_page(self):
         if not st.session_state['authentication_status']:
             st.title("登录")
@@ -18,15 +18,11 @@ class LoginPage():
             username = st.text_input("用户名")
             password = st.text_input("密码", type="password")
             if st.button("login"):
-                # todo: 使用数据库验证用户名和密码
-                conn = sqlite3.connect('Pages/AdminPages/userinfo.db')
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM users WHERE username=?", (username,))
-                user = cursor.fetchone()
-                cursor.close()
-                conn.close()
+                db_utils = DBUtils(self.args)
+                user = db_utils.user_login(username, password)
                 if user:
-                    stored_password = user[1]  # 暂时假设,会将密码存储到第二列
+                    #todo: 这里需要判断用户角色
+                    stored_password = user[1]  # Assuming the password is the second column in the users table
                     st.session_state['authentication_role']= user[2]
                     hashed_password = hashlib.sha256(password.encode()).hexdigest()
                     if hashed_password == stored_password:
@@ -38,7 +34,6 @@ class LoginPage():
                         st.write("用户名或密码错误")
                 else:
                     st.write("该用户不存在")
-
 class MainPage():
     def __init__(self):
         pass
