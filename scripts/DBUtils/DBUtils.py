@@ -99,4 +99,3 @@ class DBUtils:
         except Exception as e:
             print(f"更新用户失败: {str(e)}")
             return False  # 更新失败
->>>>>>> Stashed changes

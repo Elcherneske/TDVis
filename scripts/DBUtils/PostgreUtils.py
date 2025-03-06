@@ -46,6 +46,7 @@ class PostgreUtils:
         except Exception as e:
             raise Exception(f"执行SQL语句失败: {str(e)}")
         
+        
         finally:
             cursor.close()
             conn.close()
@@ -57,6 +58,8 @@ class PostgreUtils:
         :param table_name: 表名
         :param columns: 列定义列表，例如 ["id SERIAL PRIMARY KEY", "name VARCHAR(100)"]
         """
+        if table_name == "users" and not columns:
+            columns = ["id SERIAL PRIMARY KEY", "username VARCHAR(100)", "password VARCHAR(100)", "role VARCHAR(50)", "file_path VARCHAR(255)"]
         if table_name == "users" and not columns:
             columns = ["id SERIAL PRIMARY KEY", "username VARCHAR(100)", "password VARCHAR(100)", "role VARCHAR(50)", "file_path VARCHAR(255)"]
         try:

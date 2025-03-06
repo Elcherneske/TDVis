@@ -111,11 +111,16 @@ class AdminPage():
             if st.button("更新和删除用户"):
                 #todo:这里需要判断更新还是删除，同时要判断哪些要更新，哪些要删除，在调用对应的接口
                 
+                
                 db_utils.update_user(edited_df)
                 st.rerun()
             
         with add_tab:
             # 添加用户表单
+            add_form = st.form("add_form", clear_on_submit=True)
+            username = add_form.text_input("用户名")
+            password = add_form.text_input("密码", type="password")
+            role = add_form.selectbox("角色", options=["admin", "user"])
             add_form = st.form("add_form", clear_on_submit=True)
             username = add_form.text_input("用户名")
             password = add_form.text_input("密码", type="password")

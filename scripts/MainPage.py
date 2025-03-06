@@ -7,6 +7,7 @@ from Args import Args
 from DBUtils import DBUtils
 >>>>>>> Stashed changes
 import hashlib
+import hashlib
 
 class LoginPage():
     def __init__(self):
@@ -31,11 +32,7 @@ class LoginPage():
                 cursor.close()
                 conn.close()
                 if user:
-<<<<<<< Updated upstream
-                    stored_password = user[1]  # Assuming the password is the second column in the users table
-=======
                     stored_password = user[1]  # 暂时假设,会将密码存储到第二列
->>>>>>> Stashed changes
                     st.session_state['authentication_role']= user[2]
                     hashed_password = hashlib.sha256(password.encode()).hexdigest()
                     if hashed_password == stored_password:
