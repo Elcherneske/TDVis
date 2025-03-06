@@ -1,11 +1,10 @@
-class DBUtils:
-<<<<<<< Updated upstream
-    def __init__(self):
-        pass
-    
-    
+import streamlit as st
+import pandas as pd
+from DBUtils import DBUtils
+from PostgreUtils import PostgreUtils
+from SqliteUtils import SqliteUtils
 
-=======
+class DBUtils:
     def __init__(self, args):
         self.args = args
         db_mode = self.args.get_config("database", "mode")
@@ -53,10 +52,8 @@ class DBUtils:
         user_info = self.db.select_data_to_df("users", columns=["*"], condition=f"username = '{username}'")
         if not user_info.empty:
             return False  # 用户已存在，注册失败
-
         # todo 暂时留下文件路径的接口
         file_path = f"files/{username}"
-
         # 插入新用户信息
         try:
             self.db.insert_data("users", columns=["username", "password", "role", "file_path"], values=[username, password, role, file_path])

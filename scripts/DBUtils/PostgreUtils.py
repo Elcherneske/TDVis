@@ -26,14 +26,6 @@ class PostgreUtils:
         except Exception as e:
             raise Exception(f"数据库连接失败: {str(e)}")
 
-<<<<<<< Updated upstream
-    def disconnect(self) -> None:
-        """关闭数据库连接"""
-        if self.cursor:
-            self.cursor.close()
-        if self.conn:
-            self.conn.close()
-=======
     def execute_query(self, sql: str) -> pd.DataFrame:
         """
         执行SQL语句
@@ -50,7 +42,6 @@ class PostgreUtils:
         finally:
             cursor.close()
             conn.close()
->>>>>>> Stashed changes
 
     def create_table(self, table_name: str, columns: List[str]) -> None:
         """
@@ -63,25 +54,13 @@ class PostgreUtils:
         if table_name == "users" and not columns:
             columns = ["id SERIAL PRIMARY KEY", "username VARCHAR(100)", "password VARCHAR(100)", "role VARCHAR(50)", "file_path VARCHAR(255)"]
         try:
-<<<<<<< Updated upstream
             columns_str = ", ".join(columns)
-=======
-            conn, cursor = self._connect()
-            columns_str = ", ".join(columns)#存储为csv格式
->>>>>>> Stashed changes
             create_table_query = f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_str})"
             self.cursor.execute(create_table_query)
             self.conn.commit()
         except Exception as e:
             self.conn.rollback()
             raise Exception(f"创建表失败: {str(e)}")
-<<<<<<< Updated upstream
-
-=======
-        finally:
-            cursor.close()
-            conn.close()
->>>>>>> Stashed changes
     def insert_data(self, table_name: str, columns: List[str], values: List[Any]) -> None:
         """
         插入数据

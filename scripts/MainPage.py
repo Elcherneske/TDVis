@@ -1,13 +1,7 @@
 import streamlit as st
 from Pages import AdminPage, UserPage
-<<<<<<< Updated upstream
-import sqlite3 
-=======
 from Args import Args
 from DBUtils import DBUtils
->>>>>>> Stashed changes
-import hashlib
-import hashlib
 
 class LoginPage():
     def __init__(self):
