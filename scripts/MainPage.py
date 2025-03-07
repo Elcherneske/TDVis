@@ -6,47 +6,47 @@ import hashlib
 
 class LoginPage():
     def __init__(self, args):
-        self.args = args  # 接收从MainPage传递的args对象
-        pass
-    
+        self.args = args
+
     def run(self):
         self.show_login_page()
-    
-    @st.dialog("login")
+    @st.dialog("login")    
     def show_login_page(self):
         if not st.session_state['authentication_status']:
             st.title("登录")
-            st.write("请登录")
             username = st.text_input("用户名")
             password = st.text_input("密码", type="password")
-            if st.button("login"):
+            if st.button("登录"):
                 if username and password:
-                    # st.session_state['authentication_status'] = True
-                    # st.session_state['authentication_username'] = username
-                    # st.session_state['authentication_role'] = "admin"
                     db_utils = DBUtils(self.args)
                     user = db_utils.user_login(username, password)
                     if not user.empty:
-                        # 使用列名获取密码
                         stored_password = user.iloc[0]['password']
-                        # 使用列名获取角色
                         hashed_password = hashlib.sha256(password.encode()).hexdigest()
                         if hashed_password == stored_password:
-                            st.title("登录成功")
-                            st.session_state['authentication_status'] = True
-                            st.session_state['authentication_username'] = username
-                            st.session_state['authentication_role'] = user.iloc[0]['role']
-                            st.rerun()  # 使用 st.experimental_rerun() 重定向到相应的页面
+                            st.session_state.update({
+                                'authentication_status': True,
+                                'authentication_username': username,
+                                'authentication_role': user.iloc[0]['role'],
+                                'current_page': user.iloc[0]['role']
+                            })
+                            st.rerun()
                         else:
-                            st.write("用户名或密码错误")
+                            st.error("用户名或密码错误")
                     else:
-                        st.write("该用户不存在")
-        else:
-            st.rerun()  # 如果已经登录，重定向到相应的页面
+                        st.error("该用户不存在")
 
 class MainPage():
     def __init__(self):
         self.args = Args()
+        self.page_handlers = {
+            'admin': AdminPage(self.args),
+            'user': UserPage(),
+            'heatmap': self._load_heatmap,
+            'ms1': self._load_ms1,
+            'ms2': self._load_ms2,
+            'report': self._load_report
+        }
 
     def run(self):
         self.init_session_state()
@@ -54,31 +54,58 @@ class MainPage():
 
     def show_main_page(self):
         if not st.session_state['authentication_status']:
-            '''# Welcome TDvis !🎉
-            '''
-            '''_化学实验中心数据可视化网站_'''
-
-            if st.button("登录"):
-                login_page = LoginPage(self.args)  
-                login_page.run()
+            self._show_landing_page()
         else:
-            if st.session_state['authentication_role']=="admin":
-                admin_page = AdminPage(self.args)  
-                admin_page.run()
-            else:
-                user_page = UserPage() 
-                user_page.run()
-    
+            self._route_page()
+
+    def _show_landing_page(self):
+        st.markdown("# Welcome TDvis !🎉")
+        st.markdown("_化学实验中心数据可视化网站_")
+        if st.button("进入网站"):
+            login_page = LoginPage(self.args)
+            login_page.run()
+
+    def _route_page(self):
+        current_page = st.session_state.get('current_page', '')
+        handler = self.page_handlers.get(current_page, self._default_page)
+        
+        # 显式处理角色页面
+        if isinstance(handler, (AdminPage, UserPage)):
+            handler.run()
+        elif callable(handler):
+            handler()
+        else:
+            self._default_page()
+
+    def _default_page(self):
+        role = st.session_state['authentication_role']
+        st.session_state['current_page'] = role
+        st.rerun()
+
+    def _load_heatmap(self):
+        from Pages.UserPages.Heatmap_showpage import Heatmap
+        Heatmap().run()
+
+    def _load_ms1(self):
+        st.write("MS1 页面占位符")
+
+    def _load_ms2(self):
+        st.write("MS2 页面占位符")
+
+    def _load_report(self):
+        st.write("Report 页面占位符")
+
     def init_session_state(self):
-        if 'authentication_status' not in st.session_state:
-            st.session_state['authentication_status'] = False
-        if 'authentication_username' not in st.session_state:
-            st.session_state['authentication_username'] = ""
-        if 'authentication_role' not in st.session_state:
-            st.session_state['authentication_role'] = ""
+        defaults = {
+            'authentication_status': False,
+            'authentication_username': "",
+            'authentication_role': "",
+            'current_page': ""
+        }
+        for key, value in defaults.items():
+            if key not in st.session_state:
+                st.session_state[key] = value
 
 if __name__ == "__main__":
     main_page = MainPage()
     main_page.run()
-
-    # 加载用户数据

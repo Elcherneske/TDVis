@@ -48,8 +48,14 @@ class AdminPage():
                 original_rows = users[~users["is_selected"]]
                 for index, row in updated_rows.iterrows():
                     original_row = original_rows.loc[index]
-                    if row['username'] != original_row['username'] or row['role'] != original_row['role']:
-                        self.db_utils.update_user(row['username'], row['role'])
+                    set_clause_parts = []
+                    if row['username'] != original_row['username']:
+                        set_clause_parts.append(f"username = '{row['username']}'")
+                    if row['role'] != original_row['role']:
+                        set_clause_parts.append(f"role = '{row['role']}'")
+                    if set_clause_parts:
+                        set_clause = ", ".join(set_clause_parts)
+                        self.db_utils.update_user(original_row['username'], row['username'], row['role'])
 
                 # 重新查询用户数据并刷新表格
                 users = self.db_utils.query_users(conditions="", limit=10, offset=0)

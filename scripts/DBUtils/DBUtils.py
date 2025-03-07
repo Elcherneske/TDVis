@@ -76,17 +76,25 @@ class DBUtils:
             print(f"查询用户失败: {str(e)}")
             return pd.DataFrame()  # 查询失败，返回空DataFrame
 
-    def update_user(self, username: str, role: str) -> bool:
+    def update_user(self, old_username: str, new_username: str, role: str) -> bool:
         """
         更新用户
-        :param username: 用户名
+        :param old_username: 旧用户名
+        :param new_username: 新用户名
         :param role: 角色
         :return: 是否更新成功
         """
         try:
+            # 构建set_clause
+            set_clause_parts = []
+            if new_username:
+                set_clause_parts.append(f"username = '{new_username}'")
+            if role:
+                set_clause_parts.append(f"role = '{role}'")
+            set_clause = ", ".join(set_clause_parts)
+            
             # 使用update_data方法执行更新操作
-            set_clause = f"role = '{role}'"
-            condition = f"username = '{username}'"
+            condition = f"username = '{old_username}'"
             self.db.update_data("users", set_clause, condition)
             return True  # 更新成功
         except Exception as e:

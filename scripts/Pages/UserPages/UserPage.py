@@ -51,7 +51,5 @@ class UserPage():
             show_page.run()
 
     def init_session_state(self):
-        if 'user_select_file' not in st.session_state:
+        if  'user_select_file' not in st.session_state:
             st.session_state['user_select_file'] = None
-            
-            
