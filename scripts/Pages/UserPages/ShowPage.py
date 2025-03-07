@@ -9,7 +9,9 @@ class ShowPage():
 
     def show_show_page(self):
         #todo: 展示页面(需求参考梦婷师姐的PPT)
-        # 具体步骤：在本地某个路径下找到st.session_state['user_select_file']，然后读取文件，解析文件画图
+        '''具体步骤：
+        暂时采用本地部署的方式在本地某个路径下找到st.session_state['user_select_file']，然后读取文件，解析文件画图
+        '''
         st.title("展示页面")
         with st.sidebar:
             if st.button("重新选择"):

@@ -42,10 +42,7 @@ class DBUtils:
         :return: 是否注册成功
         """
 
-
         self.db.create_table("users", columns=["username VARCHAR(100)", "password VARCHAR(100)", "role VARCHAR(100)"])
-        #文件地址功能在之后再进行添加
-        
 
         # 检查用户是否已存在
         user_info = self.db.select_data_to_df("users", columns=["*"], condition=f"username = '{username}'")
@@ -87,10 +84,10 @@ class DBUtils:
         :return: 是否更新成功
         """
         try:
-            # 构建更新用户的SQL语句
-            update_query = f"UPDATE users SET role = '{role}' WHERE username = '{username}'"
-            # 执行更新操作
-            self.db.execute_query(update_query)
+            # 使用update_data方法执行更新操作
+            set_clause = f"role = '{role}'"
+            condition = f"username = '{username}'"
+            self.db.update_data("users", set_clause, condition)
             return True  # 更新成功
         except Exception as e:
             print(f"更新用户失败: {str(e)}")

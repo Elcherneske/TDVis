@@ -21,25 +21,28 @@ class LoginPage():
             password = st.text_input("密码", type="password")
             if st.button("login"):
                 if username and password:
-                    st.session_state['authentication_status'] = True
-                    st.session_state['authentication_role']='admin'
-                # db_utils = DBUtils(self.args)
-                # user = db_utils.user_login(username, password)
-                # if user:
-                #     #todo: 这里需要判断用户角色
-                #     stored_password = user[1]  # Assuming the password is the second column in the users table
-                #     st.session_state['authentication_role']= user[2]
-                #     hashed_password = hashlib.sha256(password.encode()).hexdigest()
-                #     if hashed_password == stored_password:
-                #         st.title("登录成功")
-                #         st.session_state['authentication_status'] = True
-                #         st.session_state['authentication_username'] = username
-                #         st.rerun()
-                #     else:
-                #         st.write("用户名或密码错误")
-                # else:
-                #     st.write("该用户不存在")
-                st.rerun()
+                    # st.session_state['authentication_status'] = True
+                    # st.session_state['authentication_username'] = username
+                    # st.session_state['authentication_role'] = "admin"
+                    db_utils = DBUtils(self.args)
+                    user = db_utils.user_login(username, password)
+                    if not user.empty:
+                        # 使用列名获取密码
+                        stored_password = user.iloc[0]['password']
+                        # 使用列名获取角色
+                        hashed_password = hashlib.sha256(password.encode()).hexdigest()
+                        if hashed_password == stored_password:
+                            st.title("登录成功")
+                            st.session_state['authentication_status'] = True
+                            st.session_state['authentication_username'] = username
+                            st.session_state['authentication_role'] = user.iloc[0]['role']
+                            st.rerun()  # 使用 st.experimental_rerun() 重定向到相应的页面
+                        else:
+                            st.write("用户名或密码错误")
+                    else:
+                        st.write("该用户不存在")
+        else:
+            st.rerun()  # 如果已经登录，重定向到相应的页面
 
 class MainPage():
     def __init__(self):
@@ -63,7 +66,7 @@ class MainPage():
                 admin_page = AdminPage(self.args)  
                 admin_page.run()
             else:
-                user_page = UserPage(self.args) 
+                user_page = UserPage() 
                 user_page.run()
     
     def init_session_state(self):

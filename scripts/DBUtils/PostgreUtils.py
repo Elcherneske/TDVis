@@ -238,3 +238,22 @@ class PostgreUtils:
         finally:
             cursor.close()
             conn.close()
+
+    def update_data(self, table_name: str, set_clause: str, condition: str) -> None:
+        """
+        更新数据
+        :param table_name: 表名
+        :param set_clause: SET子句，例如 "column1 = value1, column2 = value2"
+        :param condition: WHERE条件语句
+        """
+        try:
+            conn, cursor = self._connect()
+            update_query = f"UPDATE {table_name} SET {set_clause} WHERE {condition}"
+            cursor.execute(update_query)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise Exception(f"更新数据失败: {str(e)}")
+        finally:
+            cursor.close()
+            conn.close()
