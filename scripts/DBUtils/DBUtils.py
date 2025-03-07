@@ -1,25 +1,23 @@
-import streamlit as st
 import pandas as pd
-from DBUtils import DBUtils
-from PostgreUtils import PostgreUtils
-from SqliteUtils import SqliteUtils
+from .PostgreUtils import PostgreUtils
+from .SqliteUtils import SqliteUtils
 
 class DBUtils:
-    def __init__(self, args):
+    def __init__(self,args):
         self.args = args
-        db_mode = self.args.get_config("database", "mode")
+        db_mode = self.args.get_config("Database", "mode")
+        # 校验数据库模式是否有效
+        if db_mode not in ["sqlite", "postgresql"]:
+            raise ValueError(f"不支持的数据库模式: {db_mode}")
+        
         if db_mode == "sqlite":
             self.db = SqliteUtils(self.args)
         elif db_mode == "postgresql":
-            dbname = self.args.get_config("database", "dbname")
-            user = self.args.get_config("database", "user")
-            password = self.args.get_config("database", "password",default="041104")
-            host = self.args.get_config("database", "host", default='localhost')
-            port = self.args.get_config("database", "port", default='5432')
-            self.db = PostgreUtils(dbname, user, password, host, port)
+            self.db = PostgreUtils(self.args)
         else:
-            raise ValueError(f"Unsupported database mode: {db_mode}")
+            raise ValueError(f"不支持的数据库模式: {db_mode}")
 
+        
     def user_login(self, username: str, password: str) -> pd.DataFrame:
         """
         用户登录
@@ -44,19 +42,20 @@ class DBUtils:
         :return: 是否注册成功
         """
 
-        # 检查表是否存在，如果不存在则创建表
-        if self.db.count_data("users") == -1:
-            self.db.create_table("users", columns=[])
+
+        self.db.create_table("users", columns=["username VARCHAR(100)", "password VARCHAR(100)", "role VARCHAR(100)"])
+        #文件地址功能在之后再进行添加
+        
 
         # 检查用户是否已存在
         user_info = self.db.select_data_to_df("users", columns=["*"], condition=f"username = '{username}'")
         if not user_info.empty:
             return False  # 用户已存在，注册失败
         # todo 暂时留下文件路径的接口
-        file_path = f"files/{username}"
+        #file_path = f"files/{username}"
         # 插入新用户信息
         try:
-            self.db.insert_data("users", columns=["username", "password", "role", "file_path"], values=[username, password, role, file_path])
+            self.db.insert_data("users", columns=["username", "password", "role",], values=[username, password, role])
             return True  # 注册成功
         except Exception as e:
             print(f"注册用户失败: {str(e)}")
@@ -74,7 +73,7 @@ class DBUtils:
             # 查询用户数据
             user_info = self.db.select_data_to_df("users", columns=["*"], condition=conditions, limit=limit, offset=offset)
             # 添加数据库类型信息
-            user_info['database_type'] = self.args.get_config("database", "mode")
+            user_info.index = user_info.index+1
             return user_info
         except Exception as e:
             print(f"查询用户失败: {str(e)}")
@@ -96,3 +95,15 @@ class DBUtils:
         except Exception as e:
             print(f"更新用户失败: {str(e)}")
             return False  # 更新失败
+
+    def delete_data(self, table_name: str, condition: str) -> None:
+        """
+        删除数据
+        :param table_name: 表名
+        :param condition: WHERE条件语句
+        """
+        try:
+            self.db.delete_data(table_name, condition)
+        except Exception as e:
+            print(f"删除数据失败: {str(e)}")
+            raise Exception(f"删除数据失败: {str(e)}")

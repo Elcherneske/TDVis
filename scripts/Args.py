@@ -1,11 +1,18 @@
 import os
 import configparser
 import argparse
+import unittest
+from pathlib import Path
+
 class Args:
     def __init__(self):
-        self.config_path = './.streamlit/config.toml'
+        # 修改: 使用绝对路径确保配置文件能够被找到
+        script_dir = Path(__file__).resolve().parent
+        self.config_path = script_dir.parent / "scripts" / '.streamlit' / 'config.toml'
+        self.config = configparser.ConfigParser()
+        self.load_config()
+    def load_config(self):
         if os.path.exists(self.config_path):
-            self.config = configparser.ConfigParser()
             self.config.read(self.config_path)
         else:
             raise FileNotFoundError(f"配置文件 {self.config_path} 不存在")
@@ -22,16 +29,17 @@ class Args:
                     return float(value)
                 return int(value)
             except ValueError:
-                return value  # Return as string if conversion fails
+                return value.strip('"').strip("'")  # 修改: 去除双引号和单引号
         return None
     
     def save_config(self):
         with open(self.config_path, 'w') as configfile:
             self.config.write(configfile)
 
-    def set_config(self, section, option, value, is_save = True):
+    def set_config(self, section, option, value, is_save=True):
         if section not in self.config:
             self.config.add_section(section)
         self.config[section][option] = str(value)
         if is_save:
             self.save_config()
+

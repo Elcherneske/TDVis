@@ -4,16 +4,13 @@ primaryColor="#FF4B4B"
 backgroundColor="#FFFFFF"
 secondaryBackgroundColor="#F0F2F6"
 textColor="#31333F"
-<<<<<<< Updated upstream
-font="monospace,sans serif"
-=======
 font="sans serif"
 
 [Database]
-mode="postgresql"
-host="localhost"
-port="5432"
-dbname="postgres"
-user="postgres"
-password="041104"
->>>>>>> Stashed changes
+mode= "postgresql"
+host= "localhost"
+port= "5432"
+dbname= "postgres"
+user= "postgres"
+password= "041104"
+
