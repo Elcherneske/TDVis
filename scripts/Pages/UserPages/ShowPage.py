@@ -121,9 +121,9 @@ class ShowPage():
             
             # 定义需要统计的文件夹
             target_folders = [
-                ("proteins", "proteins"),
-                ("proteoforms", "proteoforms"), 
-                ("prsms", "PrSM")
+                ("proteins", "蛋白"),
+                ("proteoforms", "变体"), 
+                ("prsms", "特征")
             ]
             results = []
             for folder, display_name in target_folders:
@@ -133,10 +133,10 @@ class ShowPage():
                         f for f in os.listdir(folder_path) 
                         if os.path.isfile(os.path.join(folder_path, f))
                     ])
-                    results.append(f" **{display_name}**: {file_count} 条")
+                    results.append(f" **{display_name}**: {file_count} 个")
                 else:
                     results.append(f"⚠️ {display_name}目录不存在")
-            st.markdown("__检测到:__")
+            st.markdown("__本样品共检测到:__")
             st.markdown("\n".join(results))
                 
                 

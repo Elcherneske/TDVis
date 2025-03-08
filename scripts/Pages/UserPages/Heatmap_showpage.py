@@ -29,9 +29,10 @@ class Heatmap():
             
         if self._load_data():
             self._setup_controls()
-            self._plot_heatmap()
             integrated_data = self._process_integration()
+            self._plot_heatmap()
             self._plot_spectrum(integrated_data)
+            st.write("对数操作也会同时反应到积分图中")
 
     def _setup_controls(self):
         """核心控制组件"""
@@ -54,8 +55,8 @@ class Heatmap():
             # 时间范围设置
             time_min = float(self.df[self.time_col].min())
             time_max = float(self.df[self.time_col].max())
-            time_max=st.number_input("积分时间上界",time_min,time_max)
-            time_min=st.number_input("积分时间下界",time_min,time_max)
+            time_max=st.number_input("积分时间上界",time_min,time_max,time_max)
+            time_min=st.number_input("积分时间下界",time_min,time_max,time_min)
             self.time_range =(time_min, time_max)
 
             # 质量范围设置
@@ -76,6 +77,7 @@ class Heatmap():
             self.color=st.selectbox(
                 "配色",
                 options=['aggrnyl', 'agsunset', 'algae', 'amp', 'armyrose', 'balance', 'blackbody', 'bluered', 'blues', 'blugrn', 'bluyl', 'brbg', 'brwnyl', 'bugn', 'bupu', 'burg', 'burgyl', 'cividis', 'curl', 'darkmint', 'deep', 'delta', 'dense', 'earth', 'edge', 'electric', 'emrld', 'fall', 'geyser', 'gnbu', 'gray', 'greens', 'greys', 'haline', 'hot', 'hsv', 'ice', 'icefire', 'inferno', 'jet', 'magenta', 'magma', 'matter', 'mint', 'mrybm', 'mygbm', 'oranges', 'orrd', 'oryel', 'oxy', 'peach', 'phase', 'picnic', 'pinkyl', 'piyg', 'plasma', 'plotly3', 'portland', 'prgn', 'pubu', 'pubugn', 'puor', 'purd', 'purp', 'purples', 'purpor', 'rainbow', 'rdbu', 'rdgy', 'rdpu', 'rdylbu', 'rdylgn', 'redor', 'reds', 'solar', 'spectral', 'speed', 'sunset', 'sunsetdark', 'teal', 'tealgrn', 'tealrose', 'tempo', 'temps', 'thermal', 'tropic', 'turbid', 'turbo', 'twilight', 'viridis', 'ylgn', 'ylgnbu', 'ylorbr', 'ylorrd'],
+                
                 index=0
             )
 
@@ -108,8 +110,8 @@ class Heatmap():
         nbinsy=self.biny,
         color_continuous_scale=self.color,
         labels={
-            'Apex_time': '保留时间 (min)',
-            'Mass': '质量 (Da)',
+            self.time_col: '保留时间 (min)',
+            self.mass_col: '质量 (Da)',
             'z': "强度"
         },
         title='质量-时间分布'
@@ -127,14 +129,13 @@ class Heatmap():
             return
         
         data['Normalized Intensity'] = (data[self.intensity_col] / max_intensity) * 100
-
         fig = px.bar(
             data,
             x=self.mass_col,
-            y=self._apply_scale(data['Normalized Intensity']), 
-            labels={'Mass': '质量 (Da)', 'y': "强度 (%)"},  
+            y=data['Normalized Intensity'], 
+            labels={self.mass_col: '质量 (Da)', 'Normalized Intensity':"强度(%)"},  
             title='积分图',
-            color=self._apply_scale(data['Normalized Intensity']),
+            color=data['Normalized Intensity'],
             color_continuous_scale='Bluered'
         )
         st.plotly_chart(fig, use_container_width=True)
