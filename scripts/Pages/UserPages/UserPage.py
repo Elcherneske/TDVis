@@ -42,7 +42,6 @@ class UserPage():
             selec_df = st.data_editor(df, column_config=config, key="user_data_editor",width=800)
             # 使用滑动展示
             df = df.head(10)  # 只展示前10个文件
-            selected_files = []
             if st.button("选择文件"):
                 st.session_state['user_select_file'] = selec_df[selec_df['file_select'] == True]['file_name'].tolist()
                 st.rerun()

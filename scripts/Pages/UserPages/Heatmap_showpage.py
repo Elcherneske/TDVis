@@ -41,7 +41,10 @@ class Heatmap():
                         'user_select_file': None,
                         'current_page': st.session_state['authentication_role']
                     }))
-
+            st.button("返回报告界面",key="return_showpage",on_click=lambda: st.session_state.update({
+                    'current_page': None
+                }))
+                
             # 时间范围设置
             time_min = float(self.df['Apex_time'].min())
             time_max = float(self.df['Apex_time'].max())

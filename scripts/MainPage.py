@@ -68,7 +68,6 @@ class MainPage():
     def _route_page(self):
         current_page = st.session_state.get('current_page', '')
         handler = self.page_handlers.get(current_page, self._default_page)
-        
         # 显式处理角色页面
         if isinstance(handler, (AdminPage, UserPage)):
             handler.run()
