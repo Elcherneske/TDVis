@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from st_aggrid import AgGrid
+from st_aggrid import AgGrid,GridOptionsBuilder
 from .Heatmap_showpage import Heatmap
 
 class ShowPage():
@@ -57,9 +57,6 @@ class ShowPage():
             os.path.dirname(__file__), '..', '..', '..', 
             'files', username, path
         )
-        
-        
-
     def _get_feature_files(self, files_path):
         """获取用户目录下所有特征文件"""
         if not os.path.exists(files_path):
@@ -76,26 +73,21 @@ class ShowPage():
         st.markdown(f"### 当前文件: `{os.path.basename(self.selected_file)}`")
         
         # 配置列显示规则
-        column_defs = [
-            {
-                "headerName": col,
-                "field": col,
-                "hide": col not in ["Mass", "Intensity", "Apex_time"]
-            } 
-            for col in self.df.columns
-        ]
-
+        grid_builder=GridOptionsBuilder.from_dataframe(self.df)
+        grid_builder.configure_side_bar(filters_panel=True,columns_panel=False)
+        grid_options=grid_builder.build()
         AgGrid(
             self.df,
-            height=600,
-            column_defs=column_defs,  # 添加列配置
-            fit_columns_on_grid_load=True,
+            height=500,
+            gridOptions=grid_options,  # 添加列配置
+            key="grid_show_page",
             theme='streamlit',
             custom_css={
                 ".ag-header-cell-label": {"justify-content": "center"},
                 ".ag-cell": {"display": "flex", "align-items": "center"}
             }
         )
+        #Todo:根据交互式界面,提供数据处理的组件
 
 if __name__ == "__main__":
     ShowPage().run()
