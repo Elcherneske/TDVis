@@ -10,13 +10,20 @@ class Heatmap():
         self.time_range = (0, 1)      # 积分时间范围
         self.mass_range = (0, 1)     # 积分质量范围
         self.log_scale = 'None'      # 强度显示方式
-
+        self.column_map = {
+        'mass': ['Mass', 'Monoisotopic_mass', 'Precursor_mz'],
+        'time': ['Apex_time', 'Retention_time', 'RT'],
+        'intensity': ['Intensity', 'Height', 'Area']
+        }
+        self.mass_col = None  # 实际质量列名
+        self.time_col = None  # 实际时间列名
+        self.intensity_col = None  # 实际强度列名
     def run(self):
         if st.session_state.get('current_page') == 'heatmap':
             self.show_page()
 
     def show_page(self):
-        st.title("Featuremap数据可视化分析")
+        st.title("MS1 Featuremap")
         if not self._validate_selection():
             return
             
@@ -45,25 +52,19 @@ class Heatmap():
                 }))
                 
             # 时间范围设置
-            time_min = float(self.df['Apex_time'].min())
-            time_max = float(self.df['Apex_time'].max())
-            self.time_range = st.slider(
-                "积分时间范围 (min)",
-                min_value=time_min,
-                max_value=time_max,
-                value=(time_min, time_max)
-            )
+            time_min = float(self.df[self.time_col].min())
+            time_max = float(self.df[self.time_col].max())
+            time_max=st.number_input("积分时间上界",time_min,time_max)
+            time_min=st.number_input("积分时间下界",time_min,time_max)
+            self.time_range =(time_min, time_max)
 
             # 质量范围设置
-            mass_min = float(self.df['Mass'].min())
-            mass_max = float(self.df['Mass'].max())
-            self.mass_range = st.slider(
-                "积分质量范围 (Da)",
-                min_value=mass_min,
-                max_value=mass_max,
-                value=(mass_min, mass_max),
-                format="%.4f"
-            )
+            mass_min = float(self.df[self.mass_col].min())
+            mass_max = float(self.df[self.mass_col].max())
+            mass_max=st.number_input("积分时间上界",mass_min,mass_max,mass_max)
+            mass_min=st.number_input("积分时间下界",mass_min,mass_max,mass_min)
+            self.mass_range =(mass_min, mass_max)
+            
             self.log_scale = st.selectbox(
                 "强度处理方式",
                 options=['None', 'log2', 'ln','log10','sqrt'],
@@ -71,16 +72,22 @@ class Heatmap():
             )
             self.binx=st.number_input("x 轴像素",500)
             self.biny=st.number_input("y 轴像素",500)
+            
+            self.color=st.selectbox(
+                "配色",
+                options=['aggrnyl', 'agsunset', 'algae', 'amp', 'armyrose', 'balance', 'blackbody', 'bluered', 'blues', 'blugrn', 'bluyl', 'brbg', 'brwnyl', 'bugn', 'bupu', 'burg', 'burgyl', 'cividis', 'curl', 'darkmint', 'deep', 'delta', 'dense', 'earth', 'edge', 'electric', 'emrld', 'fall', 'geyser', 'gnbu', 'gray', 'greens', 'greys', 'haline', 'hot', 'hsv', 'ice', 'icefire', 'inferno', 'jet', 'magenta', 'magma', 'matter', 'mint', 'mrybm', 'mygbm', 'oranges', 'orrd', 'oryel', 'oxy', 'peach', 'phase', 'picnic', 'pinkyl', 'piyg', 'plasma', 'plotly3', 'portland', 'prgn', 'pubu', 'pubugn', 'puor', 'purd', 'purp', 'purples', 'purpor', 'rainbow', 'rdbu', 'rdgy', 'rdpu', 'rdylbu', 'rdylgn', 'redor', 'reds', 'solar', 'spectral', 'speed', 'sunset', 'sunsetdark', 'teal', 'tealgrn', 'tealrose', 'tempo', 'temps', 'thermal', 'tropic', 'turbid', 'turbo', 'twilight', 'viridis', 'ylgn', 'ylgnbu', 'ylorbr', 'ylorrd'],
+                index=0
+            )
 
     def _process_integration(self):
 
         try:
             # 时间范围筛选
-            time_mask = self.df['Apex_time'].between(*sorted(self.time_range))
-            mass_mask = self.df['Mass'].between(*sorted(self.mass_range))
+            time_mask = self.df[self.time_col].between(*sorted(self.time_range))
+            mass_mask = self.df[self.mass_col].between(*sorted(self.mass_range))
             
-            integrated = self.df[time_mask & mass_mask].groupby('Mass')['Intensity'].sum().reset_index()
-            
+            integrated = self.df[time_mask & mass_mask].groupby(self.mass_col)[self.intensity_col].sum().reset_index()
+
             if integrated.empty:
                 st.warning("积分区间无有效数据，请调整范围设置")
                 return None
@@ -93,31 +100,41 @@ class Heatmap():
     def _plot_heatmap(self):
         """热力图可视化"""
         fig = px.density_heatmap(
-            self.df,  # 使用原始数据
-            x='Apex_time',
-            y='Mass',
-            z=self._apply_scale(self.df['Intensity']),
-            nbinsx=self.binx,
-            nbinsy=self.biny,
-            color_continuous_scale='Rainbow',
-            labels={
-                'Apex_time': '保留时间 (min)',
-                'Mass': '质量 (Da)',
-                'z': "强度"
-            },
-            title='质量-时间分布'
+                self.df,
+                x=self.time_col,
+                y=self.mass_col,
+                z=self._apply_scale(self.df[self.intensity_col]),
+        nbinsx=self.binx,
+        nbinsy=self.biny,
+        color_continuous_scale=self.color,
+        labels={
+            'Apex_time': '保留时间 (min)',
+            'Mass': '质量 (Da)',
+            'z': "强度"
+        },
+        title='质量-时间分布'
         )
         st.plotly_chart(fig, use_container_width=True)
 
     def _plot_spectrum(self, data):
+        if data is None:
+            return
+        
+        # 归一化处理
+        max_intensity = data[self.intensity_col].max()
+        if max_intensity == 0:
+            st.warning("所有强度值为零，无法进行归一化")
+            return
+        
+        data['Normalized Intensity'] = (data[self.intensity_col] / max_intensity) * 100
 
         fig = px.bar(
             data,
-            x='Mass',
-            y=self._apply_scale(data['Intensity']),
-            labels={'Mass': 'Mass', 'y': "强度"},
-            title='积分质谱图',
-            color=self._apply_scale(data['Intensity']),
+            x=self.mass_col,
+            y=self._apply_scale(data['Normalized Intensity']), 
+            labels={'Mass': '质量 (Da)', 'y': "强度 (%)"},  
+            title='积分图',
+            color=self._apply_scale(data['Normalized Intensity']),
             color_continuous_scale='Bluered'
         )
         st.plotly_chart(fig, use_container_width=True)
@@ -141,7 +158,6 @@ class Heatmap():
             st.warning("⚠️ 请先选择数据文件夹")
             return False
         return True
-
     def _load_data(self):
         """数据加载与校验"""
         try:
@@ -154,7 +170,7 @@ class Heatmap():
             )
             
             feature_files = [f for f in os.listdir(files_path) 
-                            if f.endswith('_ms1.feature')]
+                            if f.endswith('ms1.feature')]
             if not feature_files:
                 st.error("❌ 未找到特征文件")
                 return False
@@ -163,11 +179,17 @@ class Heatmap():
             file_path = os.path.join(files_path, feature_files[0])
             self.df = pd.read_csv(file_path, sep='\t')
             
-            # 校验数据列
-            required_columns = {'Mass', 'Apex_time', 'Intensity'}
-            if not required_columns.issubset(self.df.columns):
-                missing = required_columns - set(self.df.columns)
-                st.error(f"❌ 缺少必要列: {', '.join(missing)}")
+            self.mass_col = self._find_column(self.column_map['mass'])
+            self.time_col = self._find_column(self.column_map['time'])
+            self.intensity_col = self._find_column(self.column_map['intensity'])
+            
+            # 校验结果
+            if not all([self.mass_col, self.time_col, self.intensity_col]):
+                missing = []
+                if not self.mass_col: missing.append("mass")
+                if not self.time_col: missing.append("time")
+                if not self.intensity_col: missing.append("intensity")
+                st.error(f"❌ 缺少必要列: {', '.join(missing)}，可接受列名: {self._format_acceptable_names(missing)}")
                 return False
                 
             return True
@@ -175,7 +197,13 @@ class Heatmap():
         except Exception as e:
             st.error(f"⛔ 数据加载失败: {str(e)}")
             return False
-
+    def _find_column(self, candidates):
+        """在数据框中查找候选列名"""
+        for col in candidates:
+            if col in self.df.columns:
+                return col
+        return None
+    
 if __name__ == "__main__":
     heatmap = Heatmap()
     heatmap.run()

@@ -3,6 +3,7 @@ import pandas as pd
 import os
 from st_aggrid import AgGrid,GridOptionsBuilder
 from .Heatmap_showpage import Heatmap
+from .toppic_showpage import ToppicShowPage
 
 class ShowPage():
     def __init__(self):
@@ -15,26 +16,30 @@ class ShowPage():
 
     def show_show_page(self):
         st.title("报告界面")
-        files_path = self._get_files_path()
+        files_path = self._get_select_path()
         file_list = self._get_feature_files(files_path)
         
         with st.sidebar:
-            # 文件选择框
+            # 文件选择框  
+            if st.button("重新选择", key="btn_reselect_show"):
+                st.session_state['user_select_file'] = None
+                st.rerun()
+
             self.selected_file = st.selectbox(
                 "选择Feature文件",
                 options=file_list,
                 index=0,
                 format_func=lambda x: os.path.basename(x)
             )
-            if st.button("重新选择", key="btn_reselect_show"):
-                st.session_state['user_select_file'] = None
-                st.rerun()
-
             if st.button("Feature map", key="btn_Feature_map_show"):
                 st.session_state['current_page'] = 'heatmap'
                 st.rerun()
-            
+                
+            if st.button("查看TOPPIC结果",key="btn_TOPPIC_show"):
+                st.session_state['current_page'] = 'toppic'
+                st.rerun()
 
+        self._count_report_files()
 
         # 显示数据表格
         if self.selected_file:
@@ -44,7 +49,7 @@ class ShowPage():
             except Exception as e:
                 st.error(f"文件读取失败: {str(e)}")
 
-    def _get_files_path(self):
+    def _get_select_path(self):
         if 'user_select_file' not in st.session_state or not st.session_state['user_select_file']:
             return None
             
@@ -66,7 +71,7 @@ class ShowPage():
         ]
     def _display_data_grid(self):
         """配置AgGrid列显示"""
-        st.markdown(f"### 当前文件: `{os.path.basename(self.selected_file)}`")
+        st.markdown(f"**当前文件:**  `{os.path.basename(self.selected_file)}`")
         # 文件下载按钮
         csv_data = self.df.to_csv(index=False, sep='\t').encode('utf-8')
         st.download_button(
@@ -77,7 +82,7 @@ class ShowPage():
             key='btn_download_feature'
         )
             # 配置列显示规则
-        default_columns = ['Mass', 'Apex_time', 'Intensity']  # 示例列名
+        default_columns = ['Mass','Monoisotopic_mass', 'Apex_time', 'Intensity']  # 示例列名
         grid_builder = GridOptionsBuilder.from_dataframe(self.df)
         for col in self.df.columns:
             # 默认列保持可见，其他列隐藏
@@ -102,52 +107,61 @@ class ShowPage():
         st.markdown(
             '''其他的数据被隐藏起来了,点击`columns`侧边栏即可找到
             后续进一步开发作图组件
-            '''
-        )
-        def _display_html_report(self, html_path):
-            """嵌入HTML报告"""
-            from streamlit.components.v1 import html
-            
-            with open(html_path, "r", encoding="utf-8") as f:
-                html_content = f.read()
-            
-            # 设置自适应iframe容器
-            st.markdown("""
-            <style>
-            .report-container {
-                height: 80vh;
-                border: 1px solid #e0e0e0;
-                border-radius: 8px;
-                overflow: hidden;
-            }
-            </style>
-            """, unsafe_allow_html=True)
-            
-            # 渲染HTML内容
-            with st.container():
-                st.markdown('<div class="report-container">', unsafe_allow_html=True)
-                html(html_content, height=800, scrolling=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-
-            
-        def _get_toppic_report_path(self):
-            """构造TOPPIC报告路径"""
-            if not self.selected_toppic:
-                return None
-            base_name = os.path.basename(self.selected_toppic).replace('.feature', '')
-            report_dir = os.path.join(
-                os.path.dirname(self.selected_toppic),  
-                f"{base_name}_report"                 
+            ''')
+        
+    def _count_report_files(self):
+        """统计HTML报告相关文件数量"""
+        html_path=self._get_html_report_path()
+        try:
+            base_path = os.path.join(
+                html_path,
+                "toppic_proteoform_cutoff",
+                "data_js"
             )
             
-            # 验证报告文件存在性
-            index_path = os.path.join(report_dir, "index.html")
-            return index_path if os.path.exists(index_path) else None        
+            # 定义需要统计的文件夹
+            target_folders = [
+                ("proteins", "proteins"),
+                ("proteoforms", "proteoforms"), 
+                ("prsms", "PrSM")
+            ]
+            results = []
+            for folder, display_name in target_folders:
+                folder_path = os.path.join(base_path, folder)
+                if os.path.exists(folder_path):
+                    file_count = len([
+                        f for f in os.listdir(folder_path) 
+                        if os.path.isfile(os.path.join(folder_path, f))
+                    ])
+                    results.append(f" **{display_name}**: {file_count} 条")
+                else:
+                    results.append(f"⚠️ {display_name}目录不存在")
+            st.markdown("__检测到:__")
+            st.markdown("\n".join(results))
                 
-            
+                
+        except Exception as e:
+            st.sidebar.error(f"文件统计失败: {str(e)}")
+    def _get_html_report_path(self):
+        """获取HTML报告路径"""
+        base_path = self._get_select_path()
+        if not base_path or not os.path.exists(base_path):
+            return None
+        # 获取目录下所有文件
+        all_files = os.listdir(base_path)
+        for filename in all_files:
+            if filename.endswith("_html"):
+                break
+
+        
+        base_dir = os.path.join(
+            os.path.dirname(__file__), '..', '..', '..',
+            'files', 
+            st.session_state['authentication_username'],
+            st.session_state['user_select_file'][0],
+            filename  # 添加_html后缀
+        )
+        return base_dir
         
 if __name__ == "__main__":
     ShowPage().run()
-
-

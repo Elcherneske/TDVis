@@ -43,7 +43,7 @@ class MainPage():
             'admin': AdminPage(self.args),
             'user': UserPage(),
             'heatmap': self._load_heatmap,
-            'ms1': self._load_ms1,
+            'toppic': self._load_toppic,
             'ms2': self._load_ms2,
             'report': self._load_report
         }
@@ -85,8 +85,9 @@ class MainPage():
         from Pages.UserPages.Heatmap_showpage import Heatmap
         Heatmap().run()
 
-    def _load_ms1(self):
-        st.write("MS1 页面占位符")
+    def _load_toppic(self):
+        from Pages.UserPages.toppic_showpage import ToppicShowPage
+        ToppicShowPage().run()
 
     def _load_ms2(self):
         st.write("MS2 页面占位符")
