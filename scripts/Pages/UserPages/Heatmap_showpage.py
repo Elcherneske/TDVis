@@ -26,7 +26,6 @@ class Heatmap():
             integrated_data = self._process_integration()
             self._plot_spectrum(integrated_data)
 
-
     def _setup_controls(self):
         """核心控制组件"""
         with st.sidebar:

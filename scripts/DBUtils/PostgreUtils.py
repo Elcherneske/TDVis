@@ -43,6 +43,7 @@ class PostgreUtils:
             return pd.read_sql_query(sql, conn)
         except Exception as e:
             raise Exception(f"执行SQL语句失败: {str(e)}")
+        
         finally:
             cursor.close()
             conn.close()
@@ -53,9 +54,11 @@ class PostgreUtils:
         :param table_name: 表名
         :param columns: 列定义列表，例如 ["id SERIAL PRIMARY KEY", "name VARCHAR(100)"]
         """
+        if table_name == "users" and not columns:
+            columns = ["id SERIAL PRIMARY KEY", "username VARCHAR(100)", "password VARCHAR(100)", "role VARCHAR(50)", "file_path VARCHAR(255)"]
         try:
             conn, cursor = self._connect()
-            columns_str = ", ".join(columns)
+            columns_str = ", ".join(columns)#存储为csv格式
             create_table_query = f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_str})"
             cursor.execute(create_table_query)
             conn.commit()
@@ -65,7 +68,6 @@ class PostgreUtils:
         finally:
             cursor.close()
             conn.close()
-
     def insert_data(self, table_name: str, columns: List[str], values: List[Any]) -> None:
         """
         插入数据

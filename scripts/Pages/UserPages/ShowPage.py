@@ -12,6 +12,7 @@ class ShowPage():
     def run(self):
         self.show_show_page()
         
+
     def show_show_page(self):
         st.title("报告界面")
         files_path = self._get_files_path()
@@ -33,16 +34,7 @@ class ShowPage():
                 st.session_state['current_page'] = 'heatmap'
                 st.rerun()
             
-            self.selected_toppic = st.selectbox(
-                "选择TOPPIC文件",
-                options=file_list,
-                index=0,
-                format_func=lambda x: os.path.basename(x)
-            )
-            #todo
-            # if st.link_button("查看toppic报告"):
-            #     #todo
-            #     st.rerun()
+
 
         # 显示数据表格
         if self.selected_file:
@@ -112,6 +104,50 @@ class ShowPage():
             后续进一步开发作图组件
             '''
         )
+        def _display_html_report(self, html_path):
+            """嵌入HTML报告"""
+            from streamlit.components.v1 import html
+            
+            with open(html_path, "r", encoding="utf-8") as f:
+                html_content = f.read()
+            
+            # 设置自适应iframe容器
+            st.markdown("""
+            <style>
+            .report-container {
+                height: 80vh;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # 渲染HTML内容
+            with st.container():
+                st.markdown('<div class="report-container">', unsafe_allow_html=True)
+                html(html_content, height=800, scrolling=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+
+            
+        def _get_toppic_report_path(self):
+            """构造TOPPIC报告路径"""
+            if not self.selected_toppic:
+                return None
+            base_name = os.path.basename(self.selected_toppic).replace('.feature', '')
+            report_dir = os.path.join(
+                os.path.dirname(self.selected_toppic),  
+                f"{base_name}_report"                 
+            )
+            
+            # 验证报告文件存在性
+            index_path = os.path.join(report_dir, "index.html")
+            return index_path if os.path.exists(index_path) else None        
+                
+            
+        
 if __name__ == "__main__":
     ShowPage().run()
+
 
