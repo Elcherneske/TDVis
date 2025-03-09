@@ -107,31 +107,29 @@ class ShowPage():
         )
             # 配置列显示规则
         default_columns = ['Mass','Monoisotopic_mass', 'Apex_time', 'Intensity']  # 示例列名
-        grid_builder = GridOptionsBuilder.from_dataframe(self.df, 
-                ennableRowGroup=True,
-                enableValue=True,
-                enablePivot=True)
+        grid_builder = GridOptionsBuilder.from_dataframe(self.df,enableValue=True,enableRowGroup=True,enablePivot=True)
         for col in self.df.columns:
             # 默认列保持可见，其他列隐藏
             grid_builder.configure_column(
                 field=col,
                 hide=col not in default_columns  # 关键配置
-
             )
-        grid_builder.configure_side_bar(filters_panel=True, columns_panel=False)
-        grid_options = grid_builder.build()
-        
+        grid_builder.configure_side_bar(
+            filters_panel=True,
+            columns_panel=True
+        )
+                
         AgGrid(
-            self.df,
-            height=500,
-            gridOptions=grid_options,
+            self.df, 
             enable_enterprise_modules=True,
-            key="grid_show_page",
+            gridOptions=grid_builder.build(),
+            height=500,
             theme='streamlit',
             custom_css={
                 ".ag-header-cell-label": {"justify-content": "center"},
                 ".ag-cell": {"display": "flex", "align-items": "center"}
-            }
+            },
+            key='aggrid_feature_show'
         )
         st.markdown(
             '''其他的数据被隐藏起来了,点击`columns`侧边栏即可找到

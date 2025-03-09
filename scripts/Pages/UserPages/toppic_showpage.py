@@ -21,6 +21,8 @@ class ToppicShowPage():
             "_ms2_toppic_prsm.tsv": ['PrSM ID', 'E-value', 'Score'],
             "_ms2_toppic_prsm_single.tsv": ['Feature ID', 'Sequence', 'Modifications']
         }
+    def run(self):
+        self.show_toppic()
 
     def _get_toppic_files(self):
         """扫描用户目录获取所有TOPPIC文件"""
@@ -83,7 +85,7 @@ class ToppicShowPage():
                     st.error(f"报告文件不存在于：{report_path}")
             except Exception as e:
                 st.error(f"打开报告失败: {str(e)}")
-            st.rerun
+            st.rerun()
 
     def _display_tab_content(self, file_path, suffix):
         df = pd.read_csv(file_path,sep='\t',skiprows=37)
@@ -116,7 +118,7 @@ class ToppicShowPage():
         # 获取默认显示的列
         default_cols = self.default_columns[suffix]
         # 构建网格配置
-        grid_builder = GridOptionsBuilder.from_dataframe(df)
+        grid_builder = GridOptionsBuilder.from_dataframe(df,enableValue=True,enableRowGroup=True,enablePivot=True)
         for col in df.columns:
             grid_builder.configure_column(
                 field=col,
@@ -127,14 +129,13 @@ class ToppicShowPage():
             filters_panel=True, 
             columns_panel=True
         )
-        
         # 渲染表格
         AgGrid(
             df,
             gridOptions=grid_builder.build(),
             height=500,
             theme='streamlit',
-            min_width=300,
+            enable_enterprise_modules=True,
             custom_css={
                 ".ag-header-cell-label": {"justify-content": "center"},
                 ".ag-cell": {"display": "flex", "align-items": "center"}
