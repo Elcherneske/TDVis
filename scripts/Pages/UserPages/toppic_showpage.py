@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from st_aggrid import AgGrid, GridOptionsBuilder
+from .file_utils import FileUtils  # 引入新的文件工具类
 
 class ToppicShowPage():
     def __init__(self):
@@ -21,8 +22,25 @@ class ToppicShowPage():
             "_ms2_toppic_prsm_single.tsv": ['Feature ID', 'Sequence', 'Modifications']
         }
 
-    def run(self):
-        self.show_toppic()
+    def _get_toppic_files(self):
+        """扫描用户目录获取所有TOPPIC文件"""
+        base_path = FileUtils.get_select_path()  # 使用新的工具类方法
+        if not base_path or not os.path.exists(base_path):
+            return None
+        
+        # 获取目录下所有文件
+        all_files = os.listdir(base_path)
+
+        # 创建后缀->文件路径的映射
+        file_map = {}
+        for filename in all_files:
+            for suffix in self.file_suffixes.values():
+                if filename.endswith(suffix):
+                    # 处理可能存在的重复后缀情况（取第一个匹配的）
+                    if suffix not in file_map:
+                        file_map[suffix] = os.path.join(base_path, filename)
+                    break
+        return file_map
 
     def show_toppic(self):
         # 侧边栏控制按钮
@@ -54,11 +72,11 @@ class ToppicShowPage():
 
         #todo 还是没有搞定,在配置服务器的时候再说
         if st.button("📑 打开Toppic报告"):
-            report_path = self._get_html_report_path()
+            report_path = FileUtils.get_html_report_path()  # 使用新的工具类方法
             # st.html(r"D:\desktop\ZJU_CHEM\TDVis\files\user_test\100ngQC-ETDHCD\20240817-100ngQC-ETDHCD_html\topmsv\index.html")
             import webbrowser
             try:
-                report_path = os.path.join(self._get_html_report_path(),'topmsv','index.html')
+                report_path = os.path.join(report_path,'topmsv','index.html')
                 if os.path.exists(report_path):
                     webbrowser.open(report_path)
                 else:
@@ -66,36 +84,6 @@ class ToppicShowPage():
             except Exception as e:
                 st.error(f"打开报告失败: {str(e)}")
             st.rerun
-    def _get_toppic_files(self):
-        """扫描用户目录获取所有TOPPIC文件"""
-        base_path = self._get_select_path()
-        if not base_path or not os.path.exists(base_path):
-            return None
-        
-        # 获取目录下所有文件
-        all_files = os.listdir(base_path)
-
-        # 创建后缀->文件路径的映射
-        file_map = {}
-        for filename in all_files:
-            for suffix in self.file_suffixes.values():
-                if filename.endswith(suffix):
-                    # 处理可能存在的重复后缀情况（取第一个匹配的）
-                    if suffix not in file_map:
-                        file_map[suffix] = os.path.join(base_path, filename)
-                    break
-        return file_map
-
-    def _get_select_path(self):
-        if 'authentication_username' not in st.session_state:
-            return None
-            
-        username = st.session_state['authentication_username']
-        selected = st.session_state['user_select_file'][0]
-        return os.path.join(
-            os.path.dirname(__file__), '..', '..', '..',
-            'files', username,selected
-        )
 
     def _display_tab_content(self, file_path, suffix):
         df = pd.read_csv(file_path,sep='\t',skiprows=37)
@@ -153,23 +141,3 @@ class ToppicShowPage():
             },
             key=f"grid_{filename}"
         )
-    def _get_html_report_path(self):
-        """获取HTML报告路径"""
-        base_path = self._get_select_path()
-        if not base_path or not os.path.exists(base_path):
-            return None
-        # 获取目录下所有文件
-        all_files = os.listdir(base_path)
-        for filename in all_files:
-            if filename.endswith("_html"):
-                break
-
-        
-        base_dir = os.path.join(
-            os.path.dirname(__file__), '..', '..', '..',
-            'files', 
-            st.session_state['authentication_username'],
-            st.session_state['user_select_file'][0],
-            filename  # 添加_html后缀
-        )
-        return base_dir
