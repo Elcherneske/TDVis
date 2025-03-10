@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from st_aggrid import AgGrid, GridOptionsBuilder
-from .file_utils import FileUtils  # 引入新的文件工具类
+from .FileUtils import FileUtils  # 引入新的文件工具类
 
 class ToppicShowPage():
     def __init__(self):

@@ -1,3 +1,3 @@
 from .UserPage import UserPage
-from .ShowPage import ShowPage
-from .Heatmap_showpage import Heatmap
+from ..FunctionPages.ShowPage import ShowPage
+from ..FunctionPages.HeatmapPage import Heatmap

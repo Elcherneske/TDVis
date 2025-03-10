@@ -1,15 +1,12 @@
 import pandas as pd
 from .PostgreUtils import PostgreUtils
 from .SqliteUtils import SqliteUtils
+import hashlib
 
 class DBUtils:
     def __init__(self,args):
         self.args = args
         db_mode = self.args.get_config("Database", "mode")
-        # 校验数据库模式是否有效
-        if db_mode not in ["sqlite", "postgresql"]:
-            raise ValueError(f"不支持的数据库模式: {db_mode}")
-        
         if db_mode == "sqlite":
             self.db = SqliteUtils(self.args)
         elif db_mode == "postgresql":
@@ -17,6 +14,12 @@ class DBUtils:
         else:
             raise ValueError(f"不支持的数据库模式: {db_mode}")
 
+    @staticmethod
+    def encode_password(password: str) -> str:
+        """_summary_
+        对密码进行的哈希加密方式(后续可以该换其他的加密方式)
+        """
+        return hashlib.sha256(password.encode()).hexdigest()
         
     def user_login(self, username: str, password: str) -> pd.DataFrame:
         """
@@ -26,12 +29,12 @@ class DBUtils:
         :return: 用户信息
         """
         # 查询用户信息
-        user_info = self.db.select_data_to_df("users", columns=["*"], condition=f"username = '{username}'")
-        # todo 在用户信息的列表中进一步添加用户文件的管理
-        if not user_info.empty:
-                return user_info
-        else:
-            return pd.DataFrame()  # 用户不存在，返回空DataFrame
+        encoded_password = self.encode_password(password)
+        return self.db.select_data_to_df(
+            "users", 
+            columns=["*"], 
+            condition=f"username = '{username}' AND password = '{encoded_password}'"
+        )
 
     def user_register(self, username: str, password: str, role: str) -> bool:
         """
@@ -50,9 +53,10 @@ class DBUtils:
             return False  # 用户已存在，注册失败
         # todo 暂时留下文件路径的接口
         #file_path = f"files/{username}"
-        # 插入新用户信息
+        # 插入新用户信息,存储加密后的密码
+        encoded_password = self.encode_password(password)
         try:
-            self.db.insert_data("users", columns=["username", "password", "role",], values=[username, password, role])
+            self.db.insert_data("users", columns=["username", "password", "role",], values=[username, encoded_password, role])
             return True  # 注册成功
         except Exception as e:
             print(f"注册用户失败: {str(e)}")

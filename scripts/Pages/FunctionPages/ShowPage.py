@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 import os
 from st_aggrid import AgGrid,GridOptionsBuilder
-from .Heatmap_showpage import Heatmap
-from .toppic_showpage import ToppicShowPage
-from .file_utils import FileUtils  # 文件索引工具封装
+from .HeatmapPage import Heatmap
+from .ToppicPage import ToppicShowPage
+from .FileUtils import FileUtils  # 文件索引工具封装
 
 class ShowPage():
     def __init__(self):
@@ -12,7 +12,11 @@ class ShowPage():
         self.df = None
 
     def run(self):
-        self.show_show_page()
+        if not st.session_state.get('user_select_file'):
+            st.error("请先选择文件")
+            return  
+        else:
+            self.show_show_page()
         
     def show_show_page(self):
         st.title("报告界面")
@@ -23,6 +27,7 @@ class ShowPage():
             # 文件选择框  
             if st.button("重新选择", key="btn_reselect_show"):
                 st.session_state['user_select_file'] = None
+                st.session_state['current_page'] = ''
                 st.rerun()
 
             self.selected_file = st.selectbox(
@@ -53,7 +58,6 @@ class ShowPage():
         """获取用户目录下所有特征文件"""
         if not os.path.exists(files_path):
             return []
-            
         return [
             os.path.join(files_path, f) 
             for f in os.listdir(files_path) 
@@ -62,7 +66,7 @@ class ShowPage():
 
     def _count_report_files(self):
         """统计HTML报告相关文件数量"""
-        html_path = FileUtils.get_html_report_path()  # 使用新的工具类方法
+        html_path = FileUtils.get_html_report_path()  
         try:
             base_path = os.path.join(
                 html_path,
