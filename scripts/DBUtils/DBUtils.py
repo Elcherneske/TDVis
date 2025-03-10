@@ -80,7 +80,7 @@ class DBUtils:
             print(f"查询用户失败: {str(e)}")
             return pd.DataFrame()  # 查询失败，返回空DataFrame
 
-    def update_user(self, old_username: str, new_username: str, role: str) -> bool:
+    def update_user(self, old_username: str, new_username: str, new_role: str) -> bool:
         """
         更新用户
         :param old_username: 旧用户名

@@ -53,7 +53,7 @@ class AdminPage():
                     
                     if updates:
                         self.db_utils.update_user(
-                            original_username=original_row['username'],
+                            old_username=original_row['username'],
                             new_username=updates.get('username'),
                             new_role=updates.get('role')
                         )

@@ -29,10 +29,50 @@ class Heatmap():
             
         if self._load_data():
             self._setup_controls()
-            integrated_data = self._process_integration()
             self._plot_heatmap()
+            # 质量范围和时间范围设置容器
+            with st.expander("**积分范围设置**"):
+                with st.container():
+                    col1, col2 = st.columns(2)
+                    
+                    # 质量范围设置列
+                    with col1:
+                        st.write("质量范围设置")
+                        mass_min0 = float(self.df[self.mass_col].min())
+                        mass_max0 = float(self.df[self.mass_col].max())
+                        # 使用双列布局包装上下界输入
+                        mass_max = st.number_input("积分质量上界", 
+                            min_value=mass_min0, 
+                            max_value=mass_max0, 
+                            value=mass_max0)
+                        mass_min = st.number_input("积分质量下界", 
+                            min_value=mass_min0, 
+                            max_value=mass_max0, 
+                            value=mass_min0)
+
+                        self.mass_range = (mass_min, mass_max)
+
+                    # 时间范围设置列
+                    with col2:
+                        st.write("时间范围设置")
+                        time_min0 = float(self.df[self.time_col].min())
+                        time_max0 = float(self.df[self.time_col].max())
+                        # 使用双列布局包装上下界输入
+                        time_max = st.number_input("积分时间上界", 
+                                                min_value=time_min0, 
+                                                max_value=time_max0, 
+                                                value=time_max0)
+                        time_min = st.number_input("积分时间下界", 
+                                                min_value=time_min0, 
+                                                max_value=time_max0, 
+                                                value=time_min0)
+
+                        self.time_range = (time_min, time_max)
+                        
+            integrated_data = self._process_integration()
+                
             self._plot_spectrum(integrated_data)
-            st.write("对数操作也会同时反应到积分图中")
+
 
     def _setup_controls(self):
         """核心控制组件"""
@@ -52,127 +92,60 @@ class Heatmap():
                     'current_page': None
                 }))
                 
-            # 时间范围设置
-            time_min = float(self.df[self.time_col].min())
-            time_max = float(self.df[self.time_col].max())
-            time_max=st.number_input("积分时间上界",time_min,time_max,time_max)
-            time_min=st.number_input("积分时间下界",time_min,time_max,time_min)
-            self.time_range =(time_min, time_max)
 
-            # 质量范围设置
-            mass_min = float(self.df[self.mass_col].min())
-            mass_max = float(self.df[self.mass_col].max())
-            mass_max=st.number_input("积分时间上界",mass_min,mass_max,mass_max)
-            mass_min=st.number_input("积分时间下界",mass_min,mass_max,mass_min)
-            self.mass_range =(mass_min, mass_max)
-            
+    
             self.log_scale = st.selectbox(
                 "强度处理方式",
                 options=['None', 'log2', 'ln','log10','sqrt'],
                 index=0
             )
             self.binx=st.number_input("x 轴像素",500)
-            self.biny=st.number_input("y 轴像素",500)
-            
-            self.color=st.selectbox(
-                "配色",
-                options=['blues',
-                            'aggrnyl', 
-                            'agsunset', 
-                            'algae', 
-                            'amp', 
-                            'armyrose', 
-                            'balance', 
-                            'blackbody', 
-                            'bluered', 
-                             'blugrn', 
-                             'bluyl', 
-                             'brbg', 
-                             'brwnyl', 
-                             'bugn', 
-                             'bupu', 
-                             'burg', 
-                             'burgyl',
-                             'cividis', 
-                             'curl',
-                             'darkmint',
-                             'deep',
-                             'delta', 
-                             'dense',
-                             'earth', 
-                             'edge', 
-                             'electric',
-                             'emrld',
-                             'fall', 
-                             'geyser', 
-                             'gnbu', 
-                             'gray',
-                             'greens', 
-                             'greys', 
-                             'haline',
-                             'hot', 
-                             'hsv', 
-                             'ice', 
-                             'icefire',
-                             'inferno',
-                             'jet', 
-                             'magenta', 
-                             'magma',
-                             'matter',
-                             'mint', 
-                             'mrybm',
-                             'mygbm',
-                             'oranges',
-                             'orrd', 
-                             'oryel', 
-                             'oxy', 
-                             'peach',
-                             'phase',
-                             'picnic',
-                             'pinkyl',
-                             'piyg',
-                             'plasma',
-                             'plotly3', 
-                             'portland',
-                             'prgn', 
-                             'pubu',
-                             'pubugn', 
-                             'puor', 
-                             'purd',
-                             'purp',
-                             'purples', 
-                             'purpor', 
-                             'rainbow', 
-                             'rdbu', 
-                             'rdgy',
-                             'rdpu',
-                             'rdylbu', 
-                             'rdylgn',
-                             'redor', 
-                             'reds', 
-                             'solar', 
-                             'spectral', 
-                             'speed', 
-                             'sunset',
-                             'sunsetdark',
-                             'teal', 
-                             'tealgrn',
-                             'tealrose',
-                             'tempo', 
-                             'temps', 
-                             'thermal',
-                             'tropic',
-                             'turbid',
-                             'turbo',
-                             'twilight',
-                             'viridis',
-                             'ylgn', 
-                             'ylgnbu', 
-                             'ylorbr', 
-                             'ylorrd'],
+            self.biny=st.number_input("y 轴像素",1000)
+
+            with st.expander("高级配色设置"):
+                self.use_custom = st.checkbox("启用自定义配色")
                 
-                index=0
-            )
+                if self.use_custom:
+                    st.markdown("**颜色节点配置**")
+                    self.custom_colors = []
+                    
+                    # 初始化session_state
+                    if 'color_nodes' not in st.session_state:
+                        st.session_state.color_nodes = 3  # 默认3个节点
+                    
+                    # 节点数量控制
+                    cols = st.columns([1,1,2])
+                    with cols[0]:
+                        if st.button("➕ 添加节点") and st.session_state.color_nodes < 6:
+                            st.session_state.color_nodes += 1
+                    with cols[1]:
+                        if st.button("➖ 减少节点") and st.session_state.color_nodes > 2:
+                            st.session_state.color_nodes -= 1
+                    
+                    # 动态生成颜色选择器
+                    for i in range(st.session_state.color_nodes):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            color = st.color_picker(f"节点{i+1} 颜色", 
+                                                value="#FF0000" if i==0 else "#0000FF" if i==1 else "#00FF00",
+                                                key=f"color_{i}")
+                        with col2:
+                            position = st.number_input(f"节点{i+1} 位置", 
+                                                    min_value=0.0, 
+                                                    max_value=1.0,
+                                                    value=float(i)/(st.session_state.color_nodes-1) if st.session_state.color_nodes>1 else i,
+                                                    step=0.01,
+                                                    key=f"pos_{i}")
+                        self.custom_colors.append([position, color])
+                    
+                    # 按位置排序颜色节点
+                    self.custom_colors.sort(key=lambda x: x[0])
+                    
+                    # 转换为Plotly接受的格式
+                    self.color_scale = [[pos, color] for pos, color in self.custom_colors]
+                else:
+                    # 保留原有预设配色选择
+                    self.color = st.selectbox("预设配色方案", options=px.colors.named_colorscales(), index=0)
 
     def _process_integration(self):
 
@@ -201,7 +174,7 @@ class Heatmap():
                 z=self._apply_scale(self.df[self.intensity_col]),
         nbinsx=self.binx,
         nbinsy=self.biny,
-        color_continuous_scale=self.color,
+        color_continuous_scale=self.color_scale if self.use_custom else self.color,
         labels={
             self.time_col: '保留时间 (min)',
             self.mass_col: '质量 (Da)',
