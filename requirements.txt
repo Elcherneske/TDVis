@@ -1,7 +1,8 @@
 psycopg2-binary
 streamlit
+streamlit-aggrid
+plotly
 pandas
 plotly
-matplotlib
-os
-hashlib
+
+

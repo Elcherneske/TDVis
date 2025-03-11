@@ -9,3 +9,17 @@ port= "5432"
 dbname= "postgres"
 user= "postgres"
 password= "041104"
+
+
+[server]
+port = 8501
+enableCORS = false
+enableXsrfProtection = true
+maxUploadSize = 10000  # 10GB
+
+[runner]
+magicEnabled = false  # 禁用魔法命令提升性能
+
+[client]
+caching = true
+showErrorDetails = false

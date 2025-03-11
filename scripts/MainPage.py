@@ -2,7 +2,15 @@ import streamlit as st
 from Pages import AdminPage, UserPage
 from Args import Args
 from DBUtils.DBUtils import DBUtils
+from streamlit.web.server.routes import StaticFileHandler
+import os
 
+# class CustomStaticFileHandler(StaticFileHandler):
+#     def __init__(self):
+#         super().__init__(
+#             root_path=os.path.join(os.path.dirname(__file__), "html_files"),
+#             url_path="/html"
+# st.server.server.add_app_route("/html/<path:path>", CustomStaticFileHandler())
 
 class LoginPage():
     def __init__(self, args):

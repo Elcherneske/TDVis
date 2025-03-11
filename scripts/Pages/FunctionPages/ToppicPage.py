@@ -1,8 +1,12 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import os
 from st_aggrid import AgGrid, GridOptionsBuilder
 from .FileUtils import FileUtils  # 引入新的文件工具类
+import subprocess
+import threading
+            
 
 class ToppicShowPage():
     def __init__(self):
@@ -64,29 +68,28 @@ class ToppicShowPage():
         st.header("TOPPIC展示界面")
         st.write("请在`columns`侧边栏中选择您需要查看的列")
         tabs = st.tabs([f"📊 {display_name}" for display_name in self.file_suffixes.keys()])
-    
+        
+        report_path=FileUtils.get_html_report_path()
+        
         for idx, (display_name, suffix) in enumerate(self.file_suffixes.items()):
              with tabs[idx]:
                 if suffix in file_map:
                     self._display_tab_content(file_map[suffix], suffix)
                 else:
                     st.warning(f"⚠️ 目录中未找到 {suffix} 类型的文件")
-
-        #todo 还是没有搞定,在配置服务器的时候再说
         if st.button("📑 打开Toppic报告"):
-            report_path = FileUtils.get_html_report_path()  # 使用新的工具类方法
-            # st.html(r"D:\desktop\ZJU_CHEM\TDVis\files\user_test\100ngQC-ETDHCD\20240817-100ngQC-ETDHCD_html\topmsv\index.html")
-            import webbrowser
-            try:
-                report_path = os.path.join(report_path,'topmsv','index.html')
-                if os.path.exists(report_path):
-                    webbrowser.open(report_path)
-                else:
-                    st.error(f"报告文件不存在于：{report_path}")
-            except Exception as e:
-                st.error(f"打开报告失败: {str(e)}")
-            st.rerun()
-
+            def start_server():
+                subprocess.run(
+                    ["python", "-m", "http.server", "8000", "--directory", report_path],
+                    check=True
+                )
+            
+            
+            # 显示访问链接
+            server_url = f"http://10.195.176.20:8000/topmsv/index.html"  # 替换为实际服务器地址
+            threading.Thread(target=start_server, daemon=True).start()
+            st.markdown(f"[点击查看报告]({server_url})", unsafe_allow_html=True)
+                    
     def _display_tab_content(self, file_path, suffix):
         df = pd.read_csv(file_path,sep='\t',skiprows=37)
         filename = os.path.basename(file_path)
