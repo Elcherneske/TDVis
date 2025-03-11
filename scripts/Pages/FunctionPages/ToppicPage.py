@@ -6,7 +6,7 @@ from st_aggrid import AgGrid, GridOptionsBuilder
 from .FileUtils import FileUtils  # 引入新的文件工具类
 import subprocess
 import threading
-            
+import socket
 
 class ToppicShowPage():
     def __init__(self):
@@ -83,10 +83,10 @@ class ToppicShowPage():
                     ["python", "-m", "http.server", "8000", "--directory", report_path],
                     check=True
                 )
-            
+            #动态将相应的文件部署到确定的端口
             
             # 显示访问链接
-            server_url = f"http://10.195.176.20:8000/topmsv/index.html"  # 替换为实际服务器地址
+            server_url = f"http://10.195.176.20:8000/topmsv/index.html"  # 替换为实际服务器地址,在内网穿透下无效,目前只能在局域网下打开
             threading.Thread(target=start_server, daemon=True).start()
             st.markdown(f"[点击查看报告]({server_url})", unsafe_allow_html=True)
                     
