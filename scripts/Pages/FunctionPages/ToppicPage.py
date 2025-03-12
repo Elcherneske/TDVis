@@ -78,18 +78,62 @@ class ToppicShowPage():
                 else:
                     st.warning(f"⚠️ 目录中未找到 {suffix} 类型的文件")
         if st.button("📑 打开Toppic报告"):
-            def start_server():
-                subprocess.run(
-                    ["python", "-m", "http.server", "8000", "--directory", report_path],
-                    check=True
-                )
-            #动态将相应的文件部署到确定的端口
+            def get_global_ipv6():
+                """获取公网IPv6地址"""
+                try:
+                    # 获取所有IPv6地址
+                    all_address = socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET6)
+                    # 筛选全球单播地址（2000::/3）
+                    global_ipv6 = [
+                        addr[4][0] for addr in all_address
+                        if not addr[4][0].startswith('fe80')  # 排除本地链路地址
+                        and not addr[4][0].startswith('::')    # 排除环回地址
+                        and addr[4][0].count(':') >= 2         # 标准格式判断
+                    ]
+                    return global_ipv6[0] if global_ipv6 else None
+                except Exception as e:
+                    st.error(f"获取IPv6地址失败: {str(e)}")
+                    return None
+
+            def get_local_ip():
+                """动态获取本机IP地址"""
+                try:
+                    # 通过创建临时socket获取本机IP,不过因为还是不了解网络的结构,对与该问题尚且不了解
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    s.connect(("8.8.8.8", 80))
+                    ip = s.getsockname()[0]
+                    s.close()
+                    return ip
+                except Exception as e:
+                    st.error(f"获取本机IP失败: {str(e)}")
+                    return "localhost" 
+                
+            def start_server(report_path):
+                """启动支持IPv6的HTTP服务器"""
+                try:
+                    subprocess.run([
+                        "python", "-m", "http.server", 
+                        "8000", "--directory", report_path,
+                        "--bind", "::"  # 关键参数：启用IPv6
+                    ], check=True)
+                except subprocess.CalledProcessError as e:
+                    st.error(f"服务器启动失败: {e.stderr.decode()}")
+            # 获取IPv6地址
+            ipv6_address = get_global_ipv6()
             
-            # 显示访问链接
-            server_url = f"http://10.195.176.20:8000/topmsv/index.html"  # 替换为实际服务器地址,在内网穿透下无效,目前只能在局域网下打开
-            threading.Thread(target=start_server, daemon=True).start()
-            st.markdown(f"[点击查看报告]({server_url})", unsafe_allow_html=True)
-                    
+            if ipv6_address:
+                server_url = f"http://[{ipv6_address}]:8000/topmsv/index.html"
+                threading.Thread(
+                    target=start_server,
+                    args=(report_path,),
+                    daemon=True
+                ).start()
+                st.markdown(f"[IPv6访问地址]({server_url})")
+            else:
+                # IPv6不可用时回退到IPv4
+                local_ip = get_local_ip()
+                server_url = f"http://{local_ip}:8000/topmsv/index.html"
+                st.markdown(f"[IPv4访问地址]({server_url}) (备用)")
     def _display_tab_content(self, file_path, suffix):
         df = pd.read_csv(file_path,sep='\t',skiprows=37)
         filename = os.path.basename(file_path)
@@ -145,3 +189,35 @@ class ToppicShowPage():
             },
             key=f"grid_{filename}"
         )
+    def get_local_ip():
+        """动态获取本机IP地址"""
+        try:
+            # 通过创建临时socket获取本机IP
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception as e:
+            st.error(f"获取本机IP失败: {str(e)}")
+            return "localhost"  # 失败时回退到本地地址
+
+    def start_server(report_path):
+        subprocess.run(
+            ["python", "-m", "http.server", "8000", "--directory", report_path],
+            check=True
+        )
+    
+    def is_zju_internal_ip(ip):
+        """检测是否为浙大内网IP"""
+        zju_network_ranges = [
+            '10.0.0.0/8',        # 浙大核心内网
+            '172.16.0.0/12',     # 实验室私有网络
+            '192.168.0.0/16',    # 各校区子网
+            '210.32.0.0/16',     # 浙大公网IP段
+            '222.205.0.0/16'     # 浙大IPv4公网段
+        ]
+        
+        from ipaddress import ip_address, ip_network
+        client_ip = ip_address(ip)
+        return any(client_ip in ip_network(net) for net in zju_network_ranges)
