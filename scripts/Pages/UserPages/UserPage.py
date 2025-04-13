@@ -1,8 +1,8 @@
 import streamlit as st
 from ..FunctionPages.ShowPage import ShowPage
 from ..FunctionPages.FileUtils import FileUtils
-import os
 import pandas as pd
+import os
 
 class UserPage():
     def __init__(self):
@@ -17,7 +17,11 @@ class UserPage():
         with st.sidebar:
             if st.button("退出"):
                 st.session_state['authentication_status'] = None
+                st.session_state['authentication_username'] = None
+                st.session_state['user_select_file'] = None
                 st.rerun()
+        
+            
         if not st.session_state['user_select_file']:
             st.title("用户页面")
             st.write("请选择文件")
@@ -40,9 +44,21 @@ class UserPage():
                 else:
                     st.error("您尚未选择文件!")
         else:
-            show_page = ShowPage()
-            show_page.run()
-
+            file_path = st.session_state['user_select_file'][0]
+            file_suffix = os.path.splitext(file_path)[1]
+            
+            path=FileUtils.get_select_path()
+            st.write(path)
+            if file_suffix==".pptx":
+                with open(path, 'rb') as file:
+                    st.download_button( label="下载人工注释",
+                                    data=file,
+                                    file_name=file_path,
+                                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                                    )
+            else:
+                show_page = ShowPage()
+                show_page.run()
     def init_session_state(self):
         if  'user_select_file' not in st.session_state:
             st.session_state['user_select_file'] = None

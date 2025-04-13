@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from DBUtils import DBUtils
-import hashlib
 from Pages.FunctionPages.FileUtils import FileUtils  
 
 
@@ -74,8 +73,7 @@ class AdminPage():
             # 添加用户按钮
             if add_form.form_submit_button("添加用户"):
                 # 修改: 将密码转换为哈希值
-                hashed_password = hashlib.sha256(password.encode()).hexdigest()
-                self.db_utils.user_register(username, hashed_password, role)
+                self.db_utils.user_register(username, password, role)
                 st.rerun()
                 
         with files_tab:

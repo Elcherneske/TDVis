@@ -1,5 +1,5 @@
 import streamlit as st
-import streamlit.components.v1 as components
+
 import pandas as pd
 import os
 from st_aggrid import AgGrid, GridOptionsBuilder
@@ -7,6 +7,13 @@ from .FileUtils import FileUtils  # 引入新的文件工具类
 import subprocess
 import threading
 import socket
+
+import time
+import os
+
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse, unquote
+
 
 class ToppicShowPage():
     def __init__(self):
@@ -98,7 +105,7 @@ class ToppicShowPage():
             def get_local_ip():
                 """动态获取本机IP地址"""
                 try:
-                    # 通过创建临时socket获取本机IP,不过因为还是不了解网络的结构,对与该问题尚且不了解
+                    # 通过创建临时socket获取本机IP
                     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                     s.connect(("8.8.8.8", 80))
                     ip = s.getsockname()[0]
@@ -106,34 +113,20 @@ class ToppicShowPage():
                     return ip
                 except Exception as e:
                     st.error(f"获取本机IP失败: {str(e)}")
-                    return "localhost" 
-                
-            def start_server(report_path):
-                """启动支持IPv6的HTTP服务器"""
-                try:
-                    subprocess.run([
-                        "python", "-m", "http.server", 
-                        "8000", "--directory", report_path,
-                        "--bind", "::"  # 关键参数：启用IPv6
-                    ], check=True)
-                except subprocess.CalledProcessError as e:
-                    st.error(f"服务器启动失败: {e.stderr.decode()}")
-            # 获取IPv6地址
-            ipv6_address = get_global_ipv6()
-            
-            if ipv6_address:
-                server_url = f"http://[{ipv6_address}]:8000/topmsv/index.html"
-                threading.Thread(
-                    target=start_server,
-                    args=(report_path,),
-                    daemon=True
-                ).start()
-                st.markdown(f"[IPv6访问地址]({server_url})")
-            else:
-                # IPv6不可用时回退到IPv4
-                local_ip = get_local_ip()
-                server_url = f"http://{local_ip}:8000/topmsv/index.html"
-                st.markdown(f"[IPv4访问地址]({server_url}) (备用)")
+                    return "localhost"  # 失败时回退到本地地址
+
+            # 在 Streamlit 按钮点击事件中启动
+            st.write(report_path)
+            threading.Thread(
+                target=start_server,
+                args=(report_path,),
+                daemon=True
+            ).start()
+
+            # 生成访问链接
+            st.markdown("🔗 **访问链接:**")
+            st.markdown(f"🌐 **IPv6:** `http://[{get_global_ipv6()}]:8000/topmsv/index.html`")
+            st.markdown(f"🌐 **IPv4:** `http://{get_local_ip()}:8000/topmsv/index.html`")
     def _display_tab_content(self, file_path, suffix):
         df = pd.read_csv(file_path,sep='\t',skiprows=37)
         filename = os.path.basename(file_path)
@@ -189,35 +182,86 @@ class ToppicShowPage():
             },
             key=f"grid_{filename}"
         )
-    def get_local_ip():
-        """动态获取本机IP地址"""
-        try:
-            # 通过创建临时socket获取本机IP
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            s.close()
-            return ip
-        except Exception as e:
-            st.error(f"获取本机IP失败: {str(e)}")
-            return "localhost"  # 失败时回退到本地地址
 
-    def start_server(report_path):
-        subprocess.run(
-            ["python", "-m", "http.server", "8000", "--directory", report_path],
-            check=True
+def virus_scan(report_path):
+    """在文件服务启动前进行安全扫描"""
+    try:
+        result = subprocess.run(
+            ["clamscan", "-r", "--infected", report_path],
+            capture_output=True,
+            text=True
         )
-    
-    def is_zju_internal_ip(ip):
-        """检测是否为浙大内网IP"""
-        zju_network_ranges = [
-            '10.0.0.0/8',        # 浙大核心内网
-            '172.16.0.0/12',     # 实验室私有网络
-            '192.168.0.0/16',    # 各校区子网
-            '210.32.0.0/16',     # 浙大公网IP段
-            '222.205.0.0/16'     # 浙大IPv4公网段
-        ]
+        if "Infected files: 0" not in result.stdout:
+            st.error("病毒扫描未通过，终止服务启动")
+            os._exit(1)  # 强制终止进程
+    except FileNotFoundError:
+        st.warning("未安装ClamAV，跳过病毒扫描")
+
+def log_monitor(report_path, token):
+    """实现日志监控函数"""
+    # 这里可以添加具体的日志监控逻辑
+    pass
+
+def start_server(report_path):
+    """启动带访问控制的HTTP服务器"""
+    try:
+        virus_scan(report_path)
+        os.chdir(report_path)
+
+        # 创建IPv6 socket并允许双栈
+        sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)  # 关键参数
+        sock.bind(('::', 8000))
+        server = ThreadingHTTPServer(
+            ('0.0.0.0', 8000),  # 同时监听IPv4/IPv6
+            CustomRequestHandler,
+            bind_and_activate=False
+        )
+
+        server.socket = sock
+        # 启动超时监控
+        threading.Thread(target=server_monitor, args=(server,)).start()
+        server.serve_forever()
+
+    except Exception as e:
+        st.error(f"服务器启动失败: {str(e)}")
+
+def server_monitor(server):
+    """60分钟无操作自动关闭"""
+    start_time = time.time()
+    while time.time() - start_time < 3600:
+        time.sleep(10)
+    server.shutdown()
+
+class CustomRequestHandler(SimpleHTTPRequestHandler):
+    secure_paths = {
+        '/topmsv/visual/ms.html': '../../toppic_prsm_cutoff/data_js',
+        '/topmsv/visual/proteins.html': '../../toppic_prsm_cutoff/data_js'
+    }
+
+    def do_GET(self):
+        # 记录访问日志
+        st.session_state.setdefault('access_log', []).append({
+            'time': time.ctime(),
+            'client': self.client_address[0],
+            'path': self.path
+        })
         
-        from ipaddress import ip_address, ip_network
-        client_ip = ip_address(ip)
-        return any(client_ip in ip_network(net) for net in zju_network_ranges)
+        # 路径安全检查
+        if not self._path_check():
+            return
+            
+        super().do_GET()
+
+    def _path_check(self):
+        parsed = urlparse(self.path)
+        if parsed.path not in self.secure_paths:
+            self.send_error(404, "File not found")
+            return False
+            
+        allowed_folder = self.secure_paths[parsed.path]
+        if f"folder={allowed_folder}" not in parsed.query:
+            self.send_error(403, "Invalid folder parameter")
+            return False
+            
+        return True

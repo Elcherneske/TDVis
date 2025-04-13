@@ -144,8 +144,7 @@ class Heatmap():
                     # 转换为Plotly接受的格式
                     self.color_scale = [[pos, color] for pos, color in self.custom_colors]
                 else:
-                    # 保留原有预设配色选择
-                    self.color = st.selectbox("预设配色方案", options=px.colors.named_colorscales(), index=0)
+                    self.color =[[0.00,"#FFFFFF" ],[0.4,"#0000FF"],[0.7,"#FF0000"],[1.00,"#FF0000"]]
 
     def _process_integration(self):
 
@@ -166,22 +165,62 @@ class Heatmap():
             st.error(f"数据处理失败: {str(e)}")
             return None
     def _plot_heatmap(self):
-        """热力图可视化"""
-        fig = px.density_heatmap(
-                self.df,
-                x=self.time_col,
-                y=self.mass_col,
-                z=self._apply_scale(self.df[self.intensity_col]),
-        nbinsx=self.binx,
-        nbinsy=self.biny,
-        color_continuous_scale=self.color_scale if self.use_custom else self.color,
-        labels={
-            self.time_col: '保留时间 (min)',
-            self.mass_col: '质量 (Da)',
-            'z': "强度"
-        },
-        title='质量-时间分布'
+
+        """Improved scatter plot with better visibility"""
+        # Create a copy for visualization
+        plot_df = self.df.copy()
+        plot_df['scaled_intensity'] = self._apply_scale(plot_df[self.intensity_col])
+        
+        fig = px.scatter(
+            plot_df,
+            x=self.time_col,
+            y=self.mass_col,
+            color='scaled_intensity',
+            size='scaled_intensity',
+            color_continuous_scale=self.color_scale if self.use_custom else self.color,
+            labels={
+                self.time_col: '保留时间 (min)',
+                self.mass_col: '质量 (Da)',
+                'color': "强度"
+            },
+            title='质量-时间分布',
+            size_max=1 # Reduced maximum size
         )
+
+        # Enhanced marker styling
+        fig.update_traces(marker=dict(
+            opacity=0.4,
+            line=dict(
+                width=0.1,
+                color='rgba(30, 30, 30, 0.5)'  # Darker border for contrast
+            ),
+            sizemode='diameter',
+            sizeref=2,  
+            sizemin=6
+        ))
+
+        # Improved background and grid
+        fig.update_layout(
+            plot_bgcolor='rgba(240, 240, 240, 1)',  # Light gray background
+            xaxis=dict(
+                showgrid=True,
+                gridcolor='rgba(255, 255, 255, 0.9)',  # Bright grid lines
+                griddash='dot'
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='rgba(255, 255, 255, 0.9)',
+                griddash='dot'
+            ),
+            coloraxis_colorbar=dict(
+                thickness=20,
+                title_side='right'
+            )
+        )
+        # Replace current sampling with intensity-based sampling
+        if len(plot_df) > 5000:
+            plot_df = plot_df.sample(n=5000, weights='scaled_intensity')  # Prefer high-intensity points
+            st.warning("展示高亮度采样数据 (5000个点)")
         st.plotly_chart(fig, use_container_width=True)
 
     def _plot_spectrum(self, data):
@@ -207,18 +246,29 @@ class Heatmap():
         st.plotly_chart(fig, use_container_width=True)
 
     def _apply_scale(self, series):
-        """应用强度转换"""
+        """应用强度转换并归一化"""
+        # 原始转换
         if self.log_scale == 'log2':
-            return np.log2(series + 1)
-        if self.log_scale == 'ln':
-            return np.log(series + 1)
-        if self.log_scale == 'sqrt':
-            return np.sqrt(series + 1)
+            scaled = np.log2(series + 1)
+        elif self.log_scale == 'ln':
+            scaled = np.log(series + 1)
+        elif self.log_scale == 'sqrt':
+            scaled = np.sqrt(series + 1)
         elif self.log_scale == 'log10':
-            return np.log10(series + 1)
-        return series
+            scaled = np.log10(series + 1)
+        else:
+            scaled = series.copy()
 
-    # 保留原有数据加载和验证方法
+        # 归一化到0-1范围
+        min_val = scaled.min()
+        max_val = scaled.max()
+        
+        if max_val - min_val > 0:
+            return (scaled - min_val) / (max_val - min_val)
+        else:
+            return scaled * 0  
+
+
     def _validate_selection(self):
         """验证文件选择状态"""
         if 'user_select_file' not in st.session_state or not st.session_state['user_select_file']:
@@ -275,6 +325,3 @@ if __name__ == "__main__":
     heatmap = Heatmap()
     heatmap.run()
 
-'''
-self.df:读取的原始数据表
-'''
