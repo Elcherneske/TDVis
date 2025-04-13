@@ -38,30 +38,31 @@ class DBUtils:
 
     def user_register(self, username: str, password: str, role: str) -> bool:
         """
-        用户注册
-        :param username: 用户名
-        :param password: 密码
-        :param role: 角色
-        :return: 是否注册成功
+        用户注册（安全改进版）
         """
-
-        self.db.create_table("users", columns=["username VARCHAR(100)", "password VARCHAR(100)", "role VARCHAR(100)"])
-
-        # 检查用户是否已存在
-        user_info = self.db.select_data_to_df("users", columns=["*"], condition=f"username = '{username}'")
-        if not user_info.empty:
-            return False  # 用户已存在，注册失败
-        # todo 暂时留下文件路径的接口
-        #file_path = f"files/{username}"
-        # 插入新用户信息,存储加密后的密码
-        encoded_password = self.encode_password(password)
         try:
-            self.db.insert_data("users", columns=["username", "password", "role",], values=[username, encoded_password, role])
-            return True  # 注册成功
-        except Exception as e:
-            print(f"注册用户失败: {str(e)}")
-            return False  # 注册失败
+            # 参数化查询防止SQL注入
+            user_info = self.db.select_data_to_df(
+                "users", 
+                columns=["*"], 
+                condition="username = %s",  # 占位符方式
+                params=(username,)
+            )
+            
+            if not user_info.empty:
+                return False
 
+            encoded_password = self.encode_password(password)
+            # 使用参数化插入
+            return self.db.insert_data(
+                "users",
+                columns=["username", "password", "role"],
+                values=(username, encoded_password, role)
+            )
+        except Exception as e:
+            print(f"注册失败: {str(e)}")
+            return False
+        
     def query_users(self, conditions: str, limit: int, offset: int) -> pd.DataFrame:
         """
         查询用户
