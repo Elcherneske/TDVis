@@ -1,10 +1,13 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import os
 from st_aggrid import AgGrid, GridOptionsBuilder
 from .FileUtils import FileUtils  # 引入新的文件工具类
+import subprocess
 import threading
 import socket
+import uuid
 import time
 import os
 import ipaddress

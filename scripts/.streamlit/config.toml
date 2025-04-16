@@ -18,7 +18,7 @@ enableXsrfProtection = true
 maxUploadSize = 10000  # 10GB
 
 [runner]
-magicEnabled = false  # 禁用魔法命令提升性能
+magicEnabled = false  
 
 [client]
 caching = true

@@ -1,6 +1,8 @@
 import streamlit as st
+import pandas as pd
 from DBUtils import DBUtils
 from Pages.FunctionPages.FileUtils import FileUtils  
+
 
 class AdminPage():
     def __init__(self, args):
@@ -16,9 +18,7 @@ class AdminPage():
                 st.rerun()
         st.title("管理员页面")
         
-        modify_tab, add_tab, files_tab, file_manage_tab = st.tabs(
-            ["修改用户", "添加用户", "查看数据", "文件管理"]
-        )
+        modify_tab, add_tab,files_tab = st.tabs(["修改用户", "添加用户","查看数据"])
         
         users = self.db_utils.query_users(conditions="", limit=10, offset=0)
         users = users.drop(columns=["password"])
@@ -104,46 +104,6 @@ class AdminPage():
                 st.session_state['authentication_username'] = user_name
                 st.session_state['current_page'] = "showpage"
                 st.rerun()  
-        with file_manage_tab:
-            st.header("用户文件管理")
-            
-            # User selection
-            user_list = self.db_utils.query_users("", 100, 0)['username'].tolist()
-            selected_user = st.selectbox("选择用户", user_list)
-            
-            # Display current file addresses
-            current_files = self.db_utils.get_file_addresses(selected_user)
-            st.write("当前文件地址列表:")
-            st.json(current_files)
-            
-            # File addition interface
-            with st.form("add_file_form"):
-                new_file_path = st.text_input("文件路径")
-                col1, col2 = st.columns([1, 4])
-                with col1:
-                    if st.form_submit_button("添加单个文件"):
-                        if new_file_path:
-                            success = self.db_utils.add_file_address(selected_user, new_file_path)
-                            if success:
-                                st.success(f"成功添加文件: {new_file_path}")
-                                st.rerun()
-                            else:
-                                st.error("添加文件失败")
-                with col2:
-                    if st.form_submit_button("批量添加文件"):
-                        # Implement batch file addition logic
-                        pass
-            
-            # File removal interface
-            if current_files:
-                selected_files = st.multiselect("选择要删除的文件", current_files)
-                if st.button("删除选中文件"):
-                    # Implement file removal logic
-                    updated_files = [f for f in current_files if f not in selected_files]
-                    success = self.db_utils.update_file_addresses(selected_user, updated_files)
-                    if success:
-                        st.success("文件删除成功")
-                        st.rerun()
 
 
             

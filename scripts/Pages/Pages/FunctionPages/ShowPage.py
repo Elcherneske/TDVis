@@ -2,7 +2,9 @@ import streamlit as st
 import pandas as pd
 import os
 from st_aggrid import AgGrid,GridOptionsBuilder
-from .FileUtils import FileUtils
+from .HeatmapPage import Heatmap
+from .ToppicPage import ToppicShowPage
+from .FileUtils import FileUtils  # 文件索引工具封装
 
 class ShowPage():
     def __init__(self):
@@ -18,8 +20,8 @@ class ShowPage():
         
     def show_show_page(self):
         st.title("报告界面")
-
-        feature_files = self._get_feature_files(st.session_state['user_select_file'][0])
+        files_path = FileUtils.get_select_path()
+        file_list = self._get_feature_files(files_path)
         
         with st.sidebar:
             # 文件选择框  
@@ -28,9 +30,12 @@ class ShowPage():
                 st.session_state['current_page'] = ''
                 st.rerun()
 
-            if feature_files:
-                self.selected_file = st.selectbox("选择特征文件", feature_files)
-            
+            self.selected_file = st.selectbox(
+                "选择Feature文件",
+                options=file_list,
+                index=0,
+                format_func=lambda x: os.path.basename(x)
+            )
             if st.button("Feature map", key="btn_Feature_map_show"):
                 st.session_state['current_page'] = 'heatmap'
                 st.rerun()
@@ -41,9 +46,14 @@ class ShowPage():
 
         self._count_report_files()
 
-        self.df = pd.read_csv(self.selected_file, sep='\t')
-        self._display_data_grid()
-        
+        # 显示数据表格
+        if self.selected_file:
+            try:
+                self.df = pd.read_csv(self.selected_file, sep='\t')
+                self._display_data_grid()
+            except Exception as e:
+                st.error(f"文件读取失败: {str(e)}")
+
     def _get_feature_files(self, files_path):
         """获取用户目录下所有特征文件"""
         if not os.path.exists(files_path):
@@ -51,19 +61,20 @@ class ShowPage():
         return [
             os.path.join(files_path, f) 
             for f in os.listdir(files_path) 
-            if f.endswith('.feature') or f.endswith('.FEATURE')  # Added case-insensitive check
+            if f.endswith('.feature')
         ]
 
     def _count_report_files(self):
         """统计HTML报告相关文件数量"""
-        html_path = FileUtils.get_html_report_path()
-
+        html_path = FileUtils.get_html_report_path()  
         try:
             base_path = os.path.join(
                 html_path,
                 "toppic_proteoform_cutoff",
                 "data_js"
             )
+            
+            # 定义需要统计的文件夹
             target_folders = [
                 ("proteins", "蛋白"),
                 ("proteoforms", "变体"), 
@@ -98,8 +109,8 @@ class ShowPage():
             mime='text/csv',
             key='btn_download_feature'
         )
-        
-        default_columns = ['Mass','Monoisotopic_mass','Precursor_monoisotopic_mz' 'Apex_time', 'Intensity','Precursor_intensity']  # 示例列名
+            # 配置列显示规则
+        default_columns = ['Mass','Monoisotopic_mass', 'Apex_time', 'Intensity']  # 示例列名
         grid_builder = GridOptionsBuilder.from_dataframe(self.df,enableValue=True,enableRowGroup=True,enablePivot=True)
         for col in self.df.columns:
             # 默认列保持可见，其他列隐藏
