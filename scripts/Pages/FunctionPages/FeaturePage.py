@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 
-class Heatmap():
+class Featuremap():
     def __init__(self):
         self.df = None
         self.time_range = (0, 1)      # 积分时间范围
@@ -19,8 +19,7 @@ class Heatmap():
         self.time_col = None  # 实际时间列名
         self.intensity_col = None  # 实际强度列名
     def run(self):
-        if st.session_state.get('current_page') == 'heatmap':
-            self.show_page()
+        self.show_page()
 
     def show_page(self):
         st.title("MS1 Featuremap")
@@ -73,78 +72,60 @@ class Heatmap():
                 
             self._plot_spectrum(integrated_data)
 
-
     def _setup_controls(self):
         """核心控制组件"""
-        with st.sidebar:
-            st.button("退出", key="exit", 
-                    on_click=lambda: st.session_state.update({
-                        'authentication_status': None,
-                        'current_page': None
-                    }))
-            
-            st.button("重新选样", key="reselect", 
-                    on_click=lambda: st.session_state.update({
-                        'user_select_file': None,
-                        'current_page': st.session_state['authentication_role']
-                    }))
-            st.button("返回报告界面",key="return_showpage",on_click=lambda: st.session_state.update({
-                    'current_page': None
-                }))
-                
-
-    
+        with st.expander("**基本设置**"):
             self.log_scale = st.selectbox(
                 "强度处理方式",
-                options=['None', 'log2', 'ln','log10','sqrt'],
+                options=['log10','None', 'log2', 'ln','sqrt'],
                 index=0
             )
             self.binx=st.number_input("x 轴像素",500)
             self.biny=st.number_input("y 轴像素",1000)
 
-            with st.expander("高级配色设置"):
-                self.use_custom = st.checkbox("启用自定义配色")
+        with st.expander("**高级配色设置**"):
+            self.use_custom = st.checkbox("启用自定义配色")
+            
+            if self.use_custom:
+                st.markdown("**颜色节点配置**")
+                self.custom_colors = []
                 
-                if self.use_custom:
-                    st.markdown("**颜色节点配置**")
-                    self.custom_colors = []
-                    
-                    # 初始化session_state
-                    if 'color_nodes' not in st.session_state:
-                        st.session_state.color_nodes = 3  # 默认3个节点
-                    
-                    # 节点数量控制
-                    cols = st.columns([1,1,2])
-                    with cols[0]:
-                        if st.button("➕ 添加节点") and st.session_state.color_nodes < 6:
-                            st.session_state.color_nodes += 1
-                    with cols[1]:
-                        if st.button("➖ 减少节点") and st.session_state.color_nodes > 2:
-                            st.session_state.color_nodes -= 1
-                    
-                    # 动态生成颜色选择器
-                    for i in range(st.session_state.color_nodes):
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            color = st.color_picker(f"节点{i+1} 颜色", 
-                                                value="#FF0000" if i==0 else "#0000FF" if i==1 else "#00FF00",
-                                                key=f"color_{i}")
-                        with col2:
-                            position = st.number_input(f"节点{i+1} 位置", 
-                                                    min_value=0.0, 
-                                                    max_value=1.0,
-                                                    value=float(i)/(st.session_state.color_nodes-1) if st.session_state.color_nodes>1 else i,
-                                                    step=0.01,
-                                                    key=f"pos_{i}")
-                        self.custom_colors.append([position, color])
-                    
-                    # 按位置排序颜色节点
-                    self.custom_colors.sort(key=lambda x: x[0])
-                    
-                    # 转换为Plotly接受的格式
-                    self.color_scale = [[pos, color] for pos, color in self.custom_colors]
-                else:
-                    self.color =[[0.00,"#FFFFFF" ],[0.4,"#0000FF"],[0.7,"#FF0000"],[1.00,"#FF0000"]]
+                # 初始化session_state
+                if 'color_nodes' not in st.session_state:
+                    st.session_state.color_nodes = 3  # 默认3个节点
+                
+                # 节点数量控制
+                cols = st.columns([1,1,2])
+                with cols[0]:
+                    if st.button("➕ 添加节点") and st.session_state.color_nodes < 6:
+                        st.session_state.color_nodes += 1
+                with cols[1]:
+                    if st.button("➖ 减少节点") and st.session_state.color_nodes > 2:
+                        st.session_state.color_nodes -= 1
+                
+                # 动态生成颜色选择器
+                for i in range(st.session_state.color_nodes):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        color = st.color_picker(f"节点{i+1} 颜色", 
+                                            value="#FF0000" if i==0 else "#0000FF" if i==1 else "#00FF00",
+                                            key=f"color_{i}")
+                    with col2:
+                        position = st.number_input(f"节点{i+1} 位置", 
+                                                min_value=0.0, 
+                                                max_value=1.0,
+                                                value=float(i)/(st.session_state.color_nodes-1) if st.session_state.color_nodes>1 else i,
+                                                step=0.01,
+                                                key=f"pos_{i}")
+                    self.custom_colors.append([position, color])
+                
+                # 按位置排序颜色节点
+                self.custom_colors.sort(key=lambda x: x[0])
+                
+                # 转换为Plotly接受的格式
+                self.color_scale = [[pos, color] for pos, color in self.custom_colors]
+            else:
+                self.color =[[0.00,"#FFFFFF" ],[0.4,"#0000FF"],[0.7,"#FF0000"],[1.00,"#FF0000"]]
 
     def _process_integration(self):
 
@@ -279,7 +260,7 @@ class Heatmap():
         """数据加载与校验"""
         try:
             # 构建文件路径
-            path = st.session_state['user_select_file'][0]
+            path = st.session_state['user_select_file']
             username = st.session_state['authentication_username']
             files_path = os.path.join(
                 os.path.dirname(__file__), '..', '..', '..', 

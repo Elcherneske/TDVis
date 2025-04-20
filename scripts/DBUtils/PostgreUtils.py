@@ -35,22 +35,45 @@ class PostgreUtils:
 
     def execute_query(self, sql: str, params: tuple = None) -> pd.DataFrame:
         try:
-            return pd.read_sql_query(sql, self.engine, params=params)
-        except Exception as e:
-            raise Exception(f"执行SQL语句失败: {str(e)}")
-
-    def execute_non_query(self, sql: str, params: tuple = None) -> None:
-        try:
             conn, cursor = self._connect()
             cursor.execute(sql, params)
-            conn.commit()
+            if sql.strip().upper().startswith('SELECT'):
+                columns = [desc[0] for desc in cursor.description]
+                data = cursor.fetchall()
+                return pd.DataFrame(data, columns=columns)
+            return pd.DataFrame()
         except Exception as e:
-            conn.rollback()
-            raise Exception(f"执行SQL语句失败: {str(e)}")
+            raise Exception(f"执行查询失败: {str(e)}\nSQL: {sql}\n参数: {params}")
         finally:
             cursor.close()
             conn.close()
 
+    def begin_transaction(self):
+        self.conn, self.cursor = self._connect()
+        
+    def commit_transaction(self):
+        self.conn.commit()
+        self.cursor.close()
+        self.conn.close()
+        
+    def rollback_transaction(self):
+        self.conn.rollback()
+        self.cursor.close()
+        self.conn.close()
+
+    # In PostgreUtils class
+    def execute_non_query(self, query: str, params=None) -> int:
+        try:
+            conn, cursor = self._connect()
+            cursor.execute(query, params)
+            conn.commit()
+            return cursor.rowcount
+        except psycopg2.Error as e:
+            print(f"Query failed: {str(e)}")
+            return 0
+        finally:
+            cursor.close()
+            conn.close()
     def create_table(self, table_name: str, columns: List[str]) -> None:
         """
         创建数据表
@@ -239,20 +262,21 @@ class PostgreUtils:
             cursor.close()
             conn.close()
 
-    def update_data(self, table_name: str, set_clause: str, condition: str) -> None:
+    def update_data(self, table_name: str, set_clause: str, condition: str, params: tuple) -> None:
         """
         更新数据
         :param table_name: 表名
-        :param set_clause: SET子句，例如 "column1 = value1, column2 = value2"
+        :param set_clause: SET子句
         :param condition: WHERE条件语句
+        :param params: 参数列表
         """
         try:
-            conn, cursor = self._connect()
+            self.begin_transaction()
             update_query = f"UPDATE {table_name} SET {set_clause} WHERE {condition}"
-            cursor.execute(update_query)
-            conn.commit()
+            self.cursor.execute(update_query, params)
+            self.commit_transaction()
         except Exception as e:
-            conn.rollback()
+            self.rollback_transaction()
             raise Exception(f"更新数据失败: {str(e)}")
         finally:
             cursor.close()

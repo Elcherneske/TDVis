@@ -32,9 +32,10 @@ class DBUtils:
         # 查询用户信息
         encoded_password = self.encode_password(password)
         return self.db.select_data_to_df(
-            "users", 
-            columns=["*"], 
-            condition=f"username = '{username}' AND password = '{encoded_password}'"
+            "users",
+            columns=["*"],
+            condition="username = %s AND password = %s",
+            params=(username, encoded_password)
         )
 
     def user_register(self, username: str, password: str, role: str) -> bool:
@@ -82,53 +83,54 @@ class DBUtils:
             print(f"查询用户失败: {str(e)}")
             return pd.DataFrame()  
 
-    def update_user(self, old_username: str, new_username: str, new_role: str) -> bool:
-        """
-        更新用户信息
-        :param old_username: 原始用户名
-        :param new_username: 新用户名（可为空表示不修改）
-        :param new_role: 新角色（可为空表示不修改）
-        :return: 是否更新成功
-        """
+    def delete_users(self, usernames: list) -> bool:
+        """删除多个用户"""
         try:
-            # 根据数据库类型选择占位符
-            if isinstance(self.db, PostgreUtils):
-                placeholder = "%s"
-            elif isinstance(self.db, SqliteUtils):
-                placeholder = "?"
-            else:
-                raise ValueError("Unsupported database type")
-
-            # 构建 SET 子句和参数列表
-            set_clauses = []
-            params = []
-
-            if new_username:
-                set_clauses.append(f"username = {placeholder}")
-                params.append(new_username)
-            if new_role:
-                set_clauses.append(f"role = {placeholder}")
-                params.append(new_role)
-
-            # 没有需要更新的字段则直接返回成功
-            if not set_clauses:
-                return True
-
-            # 构建完整的UPDATE语句
-            set_clause = ", ".join(set_clauses)
-            condition = f"username = {placeholder}"
-            params.append(old_username)
-
-            query = f"UPDATE users SET {set_clause} WHERE {condition}"
-
-            # 执行参数化查询
-            result = self.db.execute_query(query, params=params)
-            return result.rowcount > 0
-
+            self.db.begin_transaction()
+            placeholders = ','.join([self.db.param_placeholder()] * len(usernames))
+            query = f"DELETE FROM users WHERE username IN ({placeholders})"
+            affected_rows = self.db.execute_non_query(query, tuple(usernames))
+            
+            if affected_rows != len(usernames):
+                self.db.rollback_transaction()
+                return False
+                
+            self.db.commit_transaction()
+            return True
         except Exception as e:
-            print(f"更新用户失败: {str(e)}")
+            self.db.rollback_transaction()
+            print(f"[ERROR] 删除用户失败: {str(e)}")
             return False
-        
+
+    def update_user(self, old_username: str, new_username: str, old_role: str, new_role: str) -> bool:
+        """Update user information with improved transaction handling"""
+        try:
+            if old_username != new_username or old_role != new_role:
+                # Build the update query
+                set_clause = []
+                params = []
+                
+                if old_username != new_username:
+                    set_clause.append("username = %s")
+                    params.append(new_username)
+                
+                if old_role != new_role:
+                    set_clause.append("role = %s")
+                    params.append(new_role)
+                
+                # Add the condition parameter
+                params.append(old_username)
+                
+                # Execute the update
+                query = f"UPDATE users SET {', '.join(set_clause)} WHERE username = %s"
+                affected_rows = self.db.execute_non_query(query, tuple(params))
+                
+                return affected_rows > 0
+            return True
+        except Exception as e:
+            print(f"[ERROR] 更新用户失败: {str(e)}")
+            return False
+
     def add_file_address(self, username: str, file_path: str) -> bool:
         #自动将双引号过滤掉,确保能够被识别为windows中的地址
         sanitized_path = file_path.replace('"', '')  # Remove all double quotes
@@ -147,7 +149,7 @@ class DBUtils:
                 f"WHERE username = {placeholder}"
             )
             
-            params = (sanitized_path, username)  # Use sanitized path
+            params = (sanitized_path, username) 
             
             self.db.execute_non_query(query, params=params)
             return True

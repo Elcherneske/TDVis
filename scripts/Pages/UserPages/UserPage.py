@@ -1,5 +1,5 @@
 import streamlit as st
-from ..FunctionPages.ShowPage import ShowPage
+from ..FunctionPages.ReportPage import ReportPage
 from ..FunctionPages.FileUtils import FileUtils
 import os
 
@@ -13,59 +13,34 @@ class UserPage():
 
     def show_user_page(self):
         with st.sidebar:
-            if st.button("退出"):
-
+            if st.button("退出登录"):
                 st.session_state['authentication_status'] = None
                 st.session_state['authentication_username'] = None
                 st.session_state['user_select_file'] = None
                 st.rerun()
         
         if not st.session_state['user_select_file']:
-            st.title("用户页面")
-            st.write("请选择文件")
+            st.title("文件选择界面")
             username = st.session_state.get('authentication_username', '')
             
-            # Query user files using FileUtils
             df = FileUtils.query_user_files(username)
-            # Add index and selection column
             df.index = df.index + 1
-            df["file_select"] = False
-            
-            # Configure columns for data editor
-            config = {
-                "file_name": st.column_config.TextColumn("文件名"),
-                "file_select": st.column_config.CheckboxColumn("是否选择"),
-            }
-            
-            # Display data editor and get selected files
-            selec_df = st.data_editor(df, column_config=config, key="user_data_editor", width=800, height=300)
-            selected_files = selec_df[selec_df['file_select'] == True]['file_name'].tolist()
+
+            selected_file = st.radio(
+                "**📃请选择您要查看报告的文件:**",
+                df['file_name'],
+                index=None,  # No default selection
+                key="file_radio"
+            )
             
             if st.button("选择文件"):
-                if selected_files:
-                    st.session_state['user_select_file'] = selected_files
-                    st.write(selected_files)
+                if selected_file:
+                    st.session_state['user_select_file'] = selected_file  # Store single file
                     st.rerun()
                 else:
-                    st.error("您尚未选择文件!")
+                    st.error("请先选择一个文件!")
         else:
-            file_path = st.session_state['user_select_file'][0]
-
-            file_suffix = os.path.splitext(file_path)[1]
-            st.write(file_suffix)
-            
-            if file_suffix == ".pptx":
-                with open(file_path, 'rb') as file:
-                    st.download_button(
-                        label="下载人工注释",
-                        data=file,
-                        file_name=os.path.basename(file_path),
-                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                        icon=":material/download:",
-                    )
-            else:
-                show_page = ShowPage()
-                show_page.run()
+            st.rerun()
 
     def init_session_state(self):
         if 'user_select_file' not in st.session_state:

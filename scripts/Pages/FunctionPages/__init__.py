@@ -1,3 +1,3 @@
-from .HeatmapPage import Heatmap
+from .FeaturePage import Featuremap
 from .ToppicPage import ToppicShowPage
-from .ShowPage import ShowPage
+from .ReportPage import ReportPage

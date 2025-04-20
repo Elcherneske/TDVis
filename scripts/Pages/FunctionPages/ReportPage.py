@@ -3,8 +3,10 @@ import pandas as pd
 import os
 from st_aggrid import AgGrid,GridOptionsBuilder
 from .FileUtils import FileUtils
+from . import FeaturePage,ToppicPage
 
-class ShowPage():
+
+class ReportPage():
     def __init__(self):
         self.selected_file = None
         self.df = None
@@ -12,37 +14,54 @@ class ShowPage():
     def run(self):
         if not st.session_state.get('user_select_file'):
             st.error("请先选择文件")
-            return  
+            return 
         else:
-            self.show_show_page()
+            self._sidebar()
+            selected_file = st.session_state["user_select_file"]   
+            file_suffix = os.path.splitext(selected_file)[1]
+            if file_suffix == ".pptx":
+                with open(selected_file, 'rb') as file:
+                    st.download_button(
+                        label="下载人工注释",
+                        data=file,
+                        file_name=os.path.basename(selected_file),
+                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        icon=":material/download:",
+                    )
+            elif file_suffix == ".docx":
+                with open(selected_file, 'rb') as file:
+                    st.download_button(
+                        label="下载人工注释",
+                        data=file,
+                        file_name=os.path.basename(selected_file),
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        icon=":material/download:",
+                    )
+                    st.rerun()
+            else:
+                self.show_report_page()
         
-    def show_show_page(self):
+    def show_report_page(self):
+        
+        
         st.title("报告界面")
-
-        feature_files = self._get_feature_files(st.session_state['user_select_file'][0])
+        feature_files = self._get_feature_files(st.session_state['user_select_file'])
+        report_tab,feature_tab,toppic_tab = st.tabs(["主报告界面", "Featuremap", "TOPPIC结果"])
         
-        with st.sidebar:
-            # 文件选择框  
-            if st.button("重新选择", key="btn_reselect_show"):
-                st.session_state['user_select_file'] = None
-                st.session_state['current_page'] = ''
-                st.rerun()
-
+        with report_tab:
+            self._count_report_files()
             if feature_files:
                 self.selected_file = st.selectbox("选择特征文件", feature_files)
+            self.df = pd.read_csv(self.selected_file, sep='\t')
+            self._display_data_grid()
             
-            if st.button("Feature map", key="btn_Feature_map_show"):
-                st.session_state['current_page'] = 'heatmap'
-                st.rerun()
-                
-            if st.button("查看TOPPIC结果",key="btn_TOPPIC_show"):
-                st.session_state['current_page'] = 'toppic'
-                st.rerun()
+        with feature_tab:
+            feature=FeaturePage.Featuremap()
+            feature.run()
 
-        self._count_report_files()
-
-        self.df = pd.read_csv(self.selected_file, sep='\t')
-        self._display_data_grid()
+        with toppic_tab:
+            toppic=ToppicPage.ToppicShowPage()
+            toppic.run()
         
     def _get_feature_files(self, files_path):
         """获取用户目录下所有特征文件"""
@@ -51,13 +70,12 @@ class ShowPage():
         return [
             os.path.join(files_path, f) 
             for f in os.listdir(files_path) 
-            if f.endswith('.feature') or f.endswith('.FEATURE')  # Added case-insensitive check
+            if f.endswith('.feature') or f.endswith('.FEATURE') 
         ]
 
     def _count_report_files(self):
         """统计HTML报告相关文件数量"""
         html_path = FileUtils.get_html_report_path()
-
         try:
             base_path = os.path.join(
                 html_path,
@@ -82,10 +100,22 @@ class ShowPage():
                     results.append(f"⚠️ {display_name}目录不存在")
             st.markdown("__本样品共检测到:__")
             st.markdown("\n".join(results))
-                
         except Exception as e:
             st.sidebar.error(f"文件统计失败: {str(e)}")
+    def _sidebar(self):
+        with st.sidebar:
+            if st.button("退出登录",key="logout"):
+                st.session_state["authentication_status"] = False
+                st.session_state['user_select_file'] = ""
+                st.session_state['authentication_username'] = ""
+                st.rerun()
+            if st.button("重新选择文件", key="btn_reselect_show"):
+                st.session_state['user_select_file'] = None
+                st.rerun()
+            
 
+        
+        
     def _display_data_grid(self):
         """配置AgGrid列显示"""
         st.markdown(f"**当前文件:**  `{os.path.basename(self.selected_file)}`")
@@ -98,11 +128,9 @@ class ShowPage():
             mime='text/csv',
             key='btn_download_feature'
         )
-        
         default_columns = ['Mass','Monoisotopic_mass','Precursor_monoisotopic_mz' 'Apex_time', 'Intensity','Precursor_intensity']  # 示例列名
         grid_builder = GridOptionsBuilder.from_dataframe(self.df,enableValue=True,enableRowGroup=True,enablePivot=True)
         for col in self.df.columns:
-            # 默认列保持可见，其他列隐藏
             grid_builder.configure_column(
                 field=col,
                 hide=col not in default_columns  # 关键配置
@@ -128,6 +156,3 @@ class ShowPage():
             '''其他的数据被隐藏起来了,点击`columns`侧边栏即可找到
             后续进一步开发作图组件
             ''')
-        
-if __name__ == "__main__":
-    ShowPage().run()

@@ -21,55 +21,44 @@ class AdminPage():
         )
         
         users = self.db_utils.query_users(conditions="", limit=10, offset=0)
-        users = users.drop(columns=["password"])
+        users = users.drop(columns=["password","file_addresses"])
         users["is_selected"] = False
-        with modify_tab: #Todo: 尚且不完善
-
+        with modify_tab:
             config = {
                 "username": st.column_config.TextColumn("用户名"),
-                # "password": st.column_config.TextColumn("密码"),
                 "role": st.column_config.SelectboxColumn("角色", options=["admin", "user"]),
                 "is_selected": st.column_config.CheckboxColumn("是否删除")
             }
             
             edited_df = st.data_editor(users, column_config=config, key="user_data_editor")
-            # 更新和删除用户按钮
             if st.button("更新和删除用户"):
-                # 先进行删除操作
-                rows_to_delete = edited_df[edited_df["is_selected"]]
-                for _, row in rows_to_delete.iterrows():
-                    self.db_utils.delete_data("users", f"username = '{row['username']}'")
-                
-                # 再处理更新
-                updated_rows = edited_df[~edited_df["is_selected"]]
-                original_rows = users[~users["is_selected"]]
-                for (index, row), (_, original_row) in zip(updated_rows.iterrows(), original_rows.iterrows()):
-                    updates = {}
-                    if row['username'] != original_row['username']:
-                        updates['username'] = row['username']
-                    if row['role'] != original_row['role']:
-                        updates['role'] = row['role']
+                try:
+                    # 删除操作
+                    deleted_users = edited_df[edited_df["is_selected"]]['username'].tolist()
+                    if deleted_users:
+                        if not self.db_utils.delete_users(deleted_users):
+                            raise ValueError("删除用户失败")
                     
-                    if updates:
-                        self.db_utils.update_user(
-                            old_username=original_row['username'],
-                            new_username=updates.get('username'),
-                            new_role=updates.get('role')
-                        )
+                    # 更新操作
+                    updated_rows = edited_df[~edited_df["is_selected"]]
+                    
+                    for idx in updated_rows.index:
+                        row = updated_rows.loc[idx]
+                        original_username = users.loc[idx, 'username']
+                        original_role=users.loc[idx,'role']
+                        
+                        if not self.db_utils.update_user(original_username, row['username'],original_role, row['role']):
+                            raise ValueError(f"更新用户 {original_username} 失败")
+                    
+                    st.success("用户信息已更新")
+                except Exception as e:
+                    st.error(f"操作失败: {str(e)}")
 
-                # 重新查询用户数据并刷新表格
-                users = self.db_utils.query_users(conditions="", limit=10, offset=0)
-                users = users.drop(columns=["password"])
-                users["is_selected"] = False
-                st.rerun()
-                
         with add_tab:
-            # 添加用户表单
-            add_form = st.form("add_form", clear_on_submit=True)
+            add_form = st.form("add_user_form")
             username = add_form.text_input("用户名")
             password = add_form.text_input("密码", type="password")
-            role = add_form.selectbox("角色", options=["admin", "user"])
-
+            role = add_form.selectbox("角色", ["admin", "user"])
             # 添加用户按钮
             if add_form.form_submit_button("添加用户"):
                 self.db_utils.user_register(username, password, role)

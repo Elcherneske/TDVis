@@ -22,7 +22,6 @@ class FileUtils:
         args = Args()  
         db_utils = DBUtils.DBUtils(args)  # 显式调用类名
 
-        # 处理单个用户查询
         if username:
             file_addresses = db_utils.get_file_addresses(username)
             return pd.DataFrame([
@@ -58,10 +57,9 @@ class FileUtils:
     def get_html_report_path():
         """获取HTML报告路径"""
         # 获取用户选择的文件路径
-        selected_file = st.session_state['user_select_file'][0]
+        selected_file = st.session_state['user_select_file']
         #获取所有文件的列表
         all_files = os.listdir(selected_file)
-        
         for filename in all_files:
             if filename.endswith("_html"):
                 break
