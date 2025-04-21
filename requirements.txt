@@ -7,3 +7,4 @@ sqlalchemy>=2.0
 python-dotenv>=1.0
 polars>=0.20
 numpy>=1.26
+streamlit_plotly_events
