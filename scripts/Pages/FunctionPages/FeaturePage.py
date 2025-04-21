@@ -41,42 +41,44 @@ class Featuremap():
             
             # 质量范围和时间范围设置容器
             with st.expander("**积分范围手动设置**"):
-                with st.container():
-                    col1, col2 = st.columns(2)
-                    # 质量范围设置列
-                    with col1:
-                        st.write("质量范围设置")
-                        mass_min0 = float(self.df[self.mass_col].min())
-                        mass_max0 = float(self.df[self.mass_col].max())
-                        mass_max = st.number_input("积分质量上界", 
-                            min_value=mass_min0, 
-                            max_value=mass_max0, 
-                            value=mass_max0,
-                            key='mass_max')
-                        mass_min = st.number_input("积分质量下界", 
-                            min_value=mass_min0, 
-                            max_value=mass_max0, 
-                            value=mass_min0,
-                            key='mass_min')
-                        self.mass_range = (mass_min, mass_max)
+                manual=st.checkbox("手动设置积分范围", value=False, key='manual')
+                if manual:
+                    with st.container():
+                        col1, col2 = st.columns(2)
+                        # 质量范围设置列
+                        with col1:
+                            st.write("质量范围设置")
+                            mass_min0 = float(self.df[self.mass_col].min())
+                            mass_max0 = float(self.df[self.mass_col].max())
+                            mass_max = st.number_input("积分质量上界", 
+                                min_value=mass_min0, 
+                                max_value=mass_max0, 
+                                value=mass_max0,
+                                key='mass_max')
+                            mass_min = st.number_input("积分质量下界", 
+                                min_value=mass_min0, 
+                                max_value=mass_max0, 
+                                value=mass_min0,
+                                key='mass_min')
+                            self.mass_range = (mass_min, mass_max)
 
-                    # 时间范围设置列
-                    with col2:
-                        st.write("时间范围设置")
-                        time_min0 = float(self.df[self.time_col].min())
-                        time_max0 = float(self.df[self.time_col].max())
-                        time_max = st.number_input("积分时间上界", 
-                                                min_value=time_min0, 
-                                                max_value=time_max0, 
-                                                value=time_max0,
-                                                key='time_max')
-                        time_min = st.number_input("积分时间下界", 
-                                                min_value=time_min0, 
-                                                max_value=time_max0, 
-                                                value=time_min0,
-                                                key='time_min')
+                        # 时间范围设置列
+                        with col2:
+                            st.write("时间范围设置")
+                            time_min0 = float(self.df[self.time_col].min())
+                            time_max0 = float(self.df[self.time_col].max())
+                            time_max = st.number_input("积分时间上界", 
+                                                    min_value=time_min0, 
+                                                    max_value=time_max0, 
+                                                    value=time_max0,
+                                                    key='time_max')
+                            time_min = st.number_input("积分时间下界", 
+                                                    min_value=time_min0, 
+                                                    max_value=time_max0, 
+                                                    value=time_min0,
+                                                    key='time_min')
 
-                        self.time_range = (time_min, time_max)
+                            self.time_range = (time_min, time_max)
             
             # 重新处理积分数据并绘图
             integrated_data = self._process_integration()
@@ -213,6 +215,7 @@ class Featuremap():
             except (IndexError, KeyError):
                 pass
         st.write(self.time_range,self.mass_range)
+        st.rerun
         # st.plotly_chart(fig, use_container_width=True, key="feature_heatmap")
         
 
@@ -231,11 +234,11 @@ class Featuremap():
         fig.add_trace(go.Bar(
             x=data[self.mass_col],
             y=data['Normalized Intensity'],
-            # marker=dict(
-            #     color=data['Normalized Intensity'],
-            #     colorscale='Bluered',
-            #     colorbar=dict(title='强度(%)')
-            # ),
+            marker=dict(
+                color=data['Normalized Intensity'],
+                colorscale='Bluered',
+                colorbar=dict(title='强度(%)')
+            ),
             hoverinfo='text',
         ))
         fig.update_layout(
