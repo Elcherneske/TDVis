@@ -2,7 +2,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
-from streamlit_plotly_events import plotly_events
+
 import os
 
 
@@ -200,23 +200,35 @@ class Featuremap():
         fig.update_layout(
         dragmode='select',  
     )
+        # 最新版Streamlit事件处理
+        event_data = st.plotly_chart(fig, 
+            key="feature_heatmap",
+            on_select="rerun",
+            use_container_width=True,
+            theme="streamlit",)
 
-        selected_range = plotly_events(fig, select_event=True)
-        if selected_range:
+        # 处理选择事件
+        if event_data.selection:
             try:
-                x_start = selected_range[0]["x"]
-                x_end = selected_range[-1]["x"]
-                self.time_range = (x_start-1, x_end+1)# 这里加一点余量
-
-                y_values = [point["y"] for point in selected_range]
-                y_min = min(y_values) - 1  # 质量范围增加余量
-                y_max = max(y_values) + 1
-                self.mass_range = (y_min, y_max)
-            except (IndexError, KeyError):
-                pass
-        st.write(self.time_range,self.mass_range)
-        st.rerun
-        # st.plotly_chart(fig, use_container_width=True, key="feature_heatmap")
+                # 直接获取第一个有效框选范围并添加5%边界缓冲
+                box = next(b for b in event_data.selection.get('box', []) if b.get('xref') == 'x' and b.get('yref') == 'y')
+                
+                # 时间范围处理（x轴）
+                time_min, time_max = sorted([box['x'][0], box['x'][1]])
+                buffer = (time_max - time_min) * 0.05  # 5%边界缓冲
+                self.time_range = (time_min - buffer, 
+                                time_max + buffer)
+                
+                # 质量范围处理（y轴）
+                mass_min, mass_max = sorted([box['y'][0], box['y'][1]])
+                buffer = (mass_max - mass_min) * 0.05  # 5%边界缓冲
+                self.mass_range = (mass_min - buffer,
+                                mass_max + buffer)
+                
+            except (StopIteration, KeyError, TypeError):
+                pass  # 保持当前范围不重置
+            except ValueError as e:
+                st.error(f"范围值错误: {str(e)}")
         
 
     def _plot_spectrum(self, data):
@@ -255,7 +267,27 @@ class Featuremap():
             )
         )
 
-        clicked_point = plotly_events(fig, select_event=True)
+        event_data = st.plotly_chart(fig, use_container_width=True, key="spectrum",on_select="rerun",theme="streamlit")
+
+        # 处理选择事件
+        if event_data.selection:
+            try:
+                box = next(b for b in event_data.selection.get('box', []) if b.get('xref') == 'x')
+                mass_min, mass_max = sorted([box['x'][0], box['x'][1]])
+                
+                # 在范围内找强度最高峰
+                mask = data[self.mass_col].between(mass_min, mass_max)
+                selected_data = data[mask]
+                if not selected_data.empty:
+                    selected_mass = selected_data.loc[selected_data['Normalized Intensity'].idxmax(), self.mass_col]
+                else:
+                    st.warning("选择范围内无有效数据")
+                    return
+            
+            except (StopIteration, KeyError):
+                return
+
+        # 邻近峰筛选组件
         with st.expander("**邻近峰筛选**", expanded=True):
             # 添加主峰和邻近峰标注
             col1, col2 = st.columns(2)
@@ -280,10 +312,7 @@ class Featuremap():
                 st.markdown("常见的PTMS修饰有:")
                 st.markdown("• **15**: 甲基化")
 
-
-        if clicked_point:
-            #默认使用第一个峰!
-            selected_mass = clicked_point[0]["x"]
+        if event_data.selection:
             # 添加主峰标注
             fig.add_trace(go.Scatter(
                 x=[selected_mass],
@@ -305,10 +334,9 @@ class Featuremap():
                     hoverinfo='text',
                     text=[f"质量: {m:.4f} Da<br>强度: {i:.1f}%" for m,i in zip(neighbors[self.mass_col], neighbors['Normalized Intensity'])]
                 ))
-
+            st.write(f"选中质量: {selected_mass:.4f} Da")
             if not neighbors.empty:
                 st.write("**邻近峰信息**")
-                st.write(f"选中质量: {selected_mass:.4f} Da")
                 st.write(neighbors[['Monoisotopic_mass', 'mass_diff']])
             else:
                 st.warning("在指定范围内未找到邻近峰")

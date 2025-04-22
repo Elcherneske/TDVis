@@ -1,3 +1,6 @@
+#plotly_events实在是不稳定,因此舍弃
+# 留在这里备用
+
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
@@ -10,7 +13,7 @@ class Featuremap():
     def __init__(self):
         self.df = None
         self.time_range = (300,1000)      # 积分时间范围
-        self.mass_range = (300,1000)     # 积分质量范围 [浮点数]
+        self.mass_range = (300,1000)     # 积分质量范围 
         self.log_scale = 'None'      # 强度显示方式
         self.column_map = {
         'mass': ['Mass', 'Monoisotopic_mass', 'Precursor_mz'],
@@ -26,7 +29,7 @@ class Featuremap():
         self.intensity_col = None  # 实际强度列名
 
         self.neighbor_range = 20  # 默认邻近峰质量范围
-        self.max_neighbors = 20    # 默认显示最大邻近峰数量
+        self.neighbour_limit = 0  # 默认邻近峰强度阈值
     def run(self):
         self.show_page()
 
@@ -41,42 +44,44 @@ class Featuremap():
             
             # 质量范围和时间范围设置容器
             with st.expander("**积分范围手动设置**"):
-                with st.container():
-                    col1, col2 = st.columns(2)
-                    # 质量范围设置列
-                    with col1:
-                        st.write("质量范围设置")
-                        mass_min0 = float(self.df[self.mass_col].min())
-                        mass_max0 = float(self.df[self.mass_col].max())
-                        mass_max = st.number_input("积分质量上界", 
-                            min_value=mass_min0, 
-                            max_value=mass_max0, 
-                            value=mass_max0,
-                            key='mass_max')
-                        mass_min = st.number_input("积分质量下界", 
-                            min_value=mass_min0, 
-                            max_value=mass_max0, 
-                            value=mass_min0,
-                            key='mass_min')
-                        self.mass_range = (mass_min, mass_max)
+                manual=st.checkbox("手动设置积分范围", value=False, key='manual')
+                if manual:
+                    with st.container():
+                        col1, col2 = st.columns(2)
+                        # 质量范围设置列
+                        with col1:
+                            st.write("质量范围设置")
+                            mass_min0 = float(self.df[self.mass_col].min())
+                            mass_max0 = float(self.df[self.mass_col].max())
+                            mass_max = st.number_input("积分质量上界", 
+                                min_value=mass_min0, 
+                                max_value=mass_max0, 
+                                value=mass_max0,
+                                key='mass_max')
+                            mass_min = st.number_input("积分质量下界", 
+                                min_value=mass_min0, 
+                                max_value=mass_max0, 
+                                value=mass_min0,
+                                key='mass_min')
+                            self.mass_range = (mass_min, mass_max)
 
-                    # 时间范围设置列
-                    with col2:
-                        st.write("时间范围设置")
-                        time_min0 = float(self.df[self.time_col].min())
-                        time_max0 = float(self.df[self.time_col].max())
-                        time_max = st.number_input("积分时间上界", 
-                                                min_value=time_min0, 
-                                                max_value=time_max0, 
-                                                value=time_max0,
-                                                key='time_max')
-                        time_min = st.number_input("积分时间下界", 
-                                                min_value=time_min0, 
-                                                max_value=time_max0, 
-                                                value=time_min0,
-                                                key='time_min')
+                        # 时间范围设置列
+                        with col2:
+                            st.write("时间范围设置")
+                            time_min0 = float(self.df[self.time_col].min())
+                            time_max0 = float(self.df[self.time_col].max())
+                            time_max = st.number_input("积分时间上界", 
+                                                    min_value=time_min0, 
+                                                    max_value=time_max0, 
+                                                    value=time_max0,
+                                                    key='time_max')
+                            time_min = st.number_input("积分时间下界", 
+                                                    min_value=time_min0, 
+                                                    max_value=time_max0, 
+                                                    value=time_min0,
+                                                    key='time_min')
 
-                        self.time_range = (time_min, time_max)
+                            self.time_range = (time_min, time_max)
             
             # 重新处理积分数据并绘图
             integrated_data = self._process_integration()
@@ -213,6 +218,7 @@ class Featuremap():
             except (IndexError, KeyError):
                 pass
         st.write(self.time_range,self.mass_range)
+        st.rerun
         # st.plotly_chart(fig, use_container_width=True, key="feature_heatmap")
         
 
@@ -238,9 +244,46 @@ class Featuremap():
             ),
             hoverinfo='text',
         ))
-        
-        # 处理选择事件
+        fig.update_layout(
+            xaxis_title="质量 (Da)",
+            yaxis_title="强度(%)",
+            title='积分图',
+            xaxis=dict(
+                showgrid=True,
+                gridcolor='rgba(255,255,255,0.2)',
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='rgba(255,255,255,0.2)'
+            )
+        )
+
         clicked_point = plotly_events(fig, select_event=True)
+        with st.expander("**邻近峰筛选**", expanded=True):
+            # 添加主峰和邻近峰标注
+            col1, col2 = st.columns(2)
+            with col1:
+                self.neighbor_range = st.slider(
+                    "质量范围 (±Da)",
+                    min_value=0.1,
+                    max_value=1000.0,
+                    value=20.0,
+                    step=0.1
+                )
+                self.neighbour_limit = st.number_input(
+                    "阈值控制",
+                    min_value=0.00,
+                    value=3.00,
+                    max_value=100.00,
+                    step=0.01
+                )
+            with col2:
+                st.write("框选最高点即可选中一个峰")
+                st.markdown("**注**:峰之间的距离可以体现其PTMS信息")
+                st.markdown("常见的PTMS修饰有:")
+                st.markdown("• **15**: 甲基化")
+
+
         if clicked_point:
             #默认使用第一个峰!
             selected_mass = clicked_point[0]["x"]
@@ -265,48 +308,11 @@ class Featuremap():
                     hoverinfo='text',
                     text=[f"质量: {m:.4f} Da<br>强度: {i:.1f}%" for m,i in zip(neighbors[self.mass_col], neighbors['Normalized Intensity'])]
                 ))
-        
-        # 更新布局和悬浮信息
-        fig.update_layout(
-            xaxis_title="质量 (Da)",
-            yaxis_title="强度(%)",
-            title='积分图',
-            xaxis=dict(
-                showgrid=True,
-                gridcolor='rgba(255,255,255,0.2)',
-            ),
-            yaxis=dict(
-                showgrid=True,
-                gridcolor='rgba(255,255,255,0.2)'
-            )
-        )
 
-        with st.expander("**邻近峰信息**", expanded=True):
-            # 添加主峰和邻近峰标注
-            col1, col2 = st.columns(2)
-            with col1:
-                self.neighbor_range = st.slider(
-                    "质量范围 (±Da)",
-                    min_value=0.1,
-                    max_value=200.0,
-                    value=20.0,
-                    step=0.1
-                )
-            with col2:
-                self.max_neighbors = st.slider(
-                    "最大显示数量",
-                    min_value=1,
-                    max_value=20,
-                    value=5
-                )
             if not neighbors.empty:
+                st.write("**邻近峰信息**")
                 st.write(f"选中质量: {selected_mass:.4f} Da")
-                for _, row in neighbors.iterrows():
-                    diff = row[self.mass_col] - selected_mass
-                    st.write(
-                        f"• {row[self.mass_col]:.4f} Da "
-                        f"(差异: {diff:.4f} Da) "
-                    )
+                st.write(neighbors[['Monoisotopic_mass', 'mass_diff']])
             else:
                 st.warning("在指定范围内未找到邻近峰")
 
@@ -334,7 +340,6 @@ class Featuremap():
             return (scaled - min_val) / (max_val - min_val)
         else:
             return scaled * 0  
-
 
     def _validate_selection(self):
         """验证文件选择状态"""
@@ -384,17 +389,28 @@ class Featuremap():
             return False
     def _find_nearest_peaks(self, target_mass, data):
         """查找指定质量附近的邻近峰"""
-        # 获取邻近峰数据
+        if data.empty or pd.isna(target_mass):
+            return pd.DataFrame()
+
+        # 获取邻近峰数据（±neighbor_range范围）
+        mass_col = self.mass_col
+        lower_bound = target_mass - self.neighbor_range
+        upper_bound = target_mass + self.neighbor_range
+        
         neighbors = data[
-            (data[self.mass_col] > target_mass - self.neighbor_range) &
-            (data[self.mass_col] < target_mass + self.neighbor_range)
+            (data[mass_col].between(lower_bound, upper_bound)) &
+            (data["Normalized Intensity"] >= self.neighbour_limit) &
+            (~np.isclose(data[mass_col], target_mass, atol=1e-4))  # 排除主峰
         ].copy()
+
+        if neighbors.empty:
+            return neighbors
+
+        # 计算精确质量差（保留4位小数）
+        neighbors["mass_diff"] = (neighbors[mass_col] - target_mass).round(4)
         
-        # 计算质量差并排序
-        neighbors["mass_diff"] = (neighbors[self.mass_col] - target_mass).abs()
-        neighbors = neighbors.sort_values("mass_diff").head(self.max_neighbors)
-        
-        return neighbors[~neighbors[self.mass_col].isin([target_mass])]
+        # 按质量差差绝对值排序并截断结果
+        return neighbors.sort_values("mass_diff")
 
     def _find_column(self, candidates):
         """在数据框中查找候选列名"""
