@@ -18,6 +18,7 @@ class LoginPage():
             username = st.text_input("用户名")
             password = st.text_input("密码", type="password")
             if st.button("登录"):
+                st.balloons()
                 if username and password:
                     # 初始化登录方法
                     # st.session_state.update({
@@ -59,12 +60,12 @@ class MainPage():
                 self._default_page()
 
     def _show_landing_page(self):
-        st.markdown("# Welcome TDvis !🎉")
-        st.markdown("**浙江大学化学系分析测试中心色谱与质谱分中心**")
-        st.markdown("*Top-down质谱数据报告可视化网站*")
-        if st.button("进入网站"):
-            login_page = LoginPage(self.args)
-            login_page.run()
+            st.markdown("# Welcome TDvis !🎉")
+            st.markdown("**浙江大学化学系分析测试中心色谱与质谱分中心**")
+            st.markdown("*Top-down质谱数据报告可视化网站*")
+            if st.button("进入网站"):
+                login_page = LoginPage(self.args)
+                login_page.run()
 
     def _default_page(self):#进入用户界面或者管理员界面
         role = st.session_state['authentication_role']

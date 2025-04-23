@@ -3,7 +3,6 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 from .ServerUtils import ServerControl
-from .FileUtils import FileUtils
 import os
 
 
@@ -240,7 +239,6 @@ class Featuremap():
             except ValueError as e:
                 st.error(f"范围值错误: {str(e)}")
         
-
     def _plot_spectrum(self, data):
         if data is None:
             return
@@ -278,7 +276,7 @@ class Featuremap():
         )
 
         event_data = st.plotly_chart(fig, use_container_width=True, key="spectrum",on_select="rerun",theme="streamlit")
-
+        
         # 处理选择事件
         if event_data.selection:
             try:

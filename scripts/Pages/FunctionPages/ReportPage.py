@@ -118,9 +118,6 @@ class ReportPage():
                 st.session_state['user_select_file'] = None
                 st.rerun()
             
-
-        
-        
     def _display_data_grid(self):
         """配置AgGrid列显示"""
         st.markdown(f"**当前文件:**  `{os.path.basename(self.selected_file)}`")
@@ -144,7 +141,6 @@ class ReportPage():
             filters_panel=True,
             columns_panel=True
         )
-                
         AgGrid(
             self.df, 
             enable_enterprise_modules=True,

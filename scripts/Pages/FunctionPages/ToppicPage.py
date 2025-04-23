@@ -66,7 +66,7 @@ class ToppicShowPage():
 
     def _display_toppic_report(self, report_path):
         try:
-            server_url = ServerControl.get_url(report_path)
+            server_url = ServerControl.get_url()
             st.markdown(f"[IPv4访问地址]({server_url})")
         except Exception as e:
             st.error(f"服务器启动失败: {str(e)}")

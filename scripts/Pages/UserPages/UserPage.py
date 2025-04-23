@@ -20,8 +20,8 @@ class UserPage():
                 st.rerun()
         
         if not st.session_state['user_select_file']:
-            st.title("文件选择界面")
-            username = st.session_state.get('authentication_username', '')
+            username=st.session_state.get('authentication_username', '')
+            st.title(username+"的个人中心")
             
             df = FileUtils.query_user_files(username)
             df.index = df.index + 1
