@@ -40,11 +40,14 @@ class ServerControl():
                 daemon=True
             ).start()
             
-            local_ip = ServerControl.get_local_ip()
-            return f"http://{local_ip}:8000/topmsv/index.html"
+            return ServerControl.get_url()
         except Exception as e:
             raise Exception(f"服务器启动失败: {str(e)}")
-
+    @staticmethod
+    def get_url():
+        """获取报告URL"""
+        local_ip = ServerControl.get_local_ip()
+        return f"http://{local_ip}:8000/topmsv/index.html"
     @staticmethod
     def server_monitor(server):
         """60分钟无操作自动关闭"""

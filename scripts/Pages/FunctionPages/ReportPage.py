@@ -3,6 +3,7 @@ import pandas as pd
 import os
 from st_aggrid import AgGrid,GridOptionsBuilder
 from .FileUtils import FileUtils
+from .ServerUtils import ServerControl
 from . import FeaturePage,ToppicPage
 
 
@@ -12,6 +13,7 @@ class ReportPage():
         self.df = None
 
     def run(self):
+        
         if not st.session_state.get('user_select_file'):
             st.error("请先选择文件")
             return 
@@ -43,6 +45,9 @@ class ReportPage():
         
     def show_report_page(self):
         
+        #首先直接启动toppic服务
+        html_path = FileUtils.get_html_report_path()
+        ServerControl.start_report_server(html_path)
         
         st.title("报告界面")
         feature_files = self._get_feature_files(st.session_state['user_select_file'])

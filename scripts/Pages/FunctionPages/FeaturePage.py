@@ -2,7 +2,8 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
-
+from .ServerUtils import ServerControl
+from .FileUtils import FileUtils
 import os
 
 
@@ -13,12 +14,14 @@ class Featuremap():
         self.mass_range = (300,1000)     # 积分质量范围 
         self.log_scale = 'None'      # 强度显示方式
         self.column_map = {
+        'feature': ['Feature_ID', 'Feature ID'],
         'mass': ['Mass', 'Monoisotopic_mass', 'Precursor_mz'],
         'start_time':['Start_time', 'Min_time'],
         'end_time':['End_time', 'Max_time'],
         'time': ['Apex_time', 'Retention_time', 'RT'],
         'intensity': ['Intensity', 'Height', 'Area']
         }
+        self.feature_col=None
         self.mass_col = None  # 实际质量列名
         self.start_time_col = None  # 实际起始时间列名
         self.end_time_col = None    # 实际结束时间列名
@@ -83,7 +86,11 @@ class Featuremap():
             # 重新处理积分数据并绘图
             integrated_data = self._process_integration()
             self._plot_spectrum(integrated_data)
-            st.write("**注**:当将一条谱线放大到较宽的时候,悬浮鼠标即可获得其信息")
+
+            featureid=st.number_input("Prsm查询:根据输入的Feature ID来查找prsm", key='neighbor_range')
+            if st.button("查询"):
+                prsmid=self._get_prsm_id(featureid)
+                st.write(prsmid["URL"])         
 
     def _setup_controls(self):
         """核心控制组件"""
@@ -146,7 +153,10 @@ class Featuremap():
         try:
             time_mask = self.df[self.time_col].between(*sorted(self.time_range))
             mass_mask = self.df[self.mass_col].between(*sorted(self.mass_range))
-            integrated = self.df[time_mask & mass_mask].groupby(self.mass_col)[self.intensity_col].sum().reset_index()
+            integrated = self.df[time_mask & mass_mask].groupby(self.mass_col).agg({
+    self.intensity_col: 'sum',
+    self.feature_col: lambda x: list(x.unique())
+}).reset_index()
             if integrated.empty:
                 st.warning("积分区间无有效数据，请调整范围设置")
                 return None
@@ -307,7 +317,6 @@ class Featuremap():
                     step=0.01
                 )
             with col2:
-                st.write("框选最高点即可选中一个峰")
                 st.markdown("**注**:峰之间的距离可以体现其PTMS信息")
                 st.markdown("常见的PTMS修饰有:")
                 st.markdown("• **15**: 甲基化")
@@ -337,12 +346,18 @@ class Featuremap():
             st.write(f"选中质量: {selected_mass:.4f} Da")
             if not neighbors.empty:
                 st.write("**邻近峰信息**")
-                st.write(neighbors[['Monoisotopic_mass', 'mass_diff']])
+                st.write(f"选中质量: {selected_mass:.4f} Da")
+                # 显示包含PrSM ID的表格
+                # 优化显示列名和格式
+                display_columns = {
+                    'Monoisotopic_mass': '质量 (Da)',
+                    'mass_diff': '质量差',
+                    'PrSM_ID': 'PrSM ID'
+                }
+                neighbors_display = neighbors[['Monoisotopic_mass', 'mass_diff','Feature_ID']].rename(columns=display_columns)
+                st.write(neighbors_display)
             else:
                 st.warning("在指定范围内未找到邻近峰")
-
-
-
     def _apply_scale(self, series):
         """应用强度转换并归一化"""
         # 原始转换
@@ -374,26 +389,34 @@ class Featuremap():
         return True
     def _load_data(self):
         """数据加载与校验"""
+
+        #加载feature1文件
         try:
-            path = st.session_state['user_select_file']
-            username = st.session_state['authentication_username']
-            files_path = os.path.join(
-                os.path.dirname(__file__), '..', '..', '..', 
-                'files', username, path
-            )
+            files_path = st.session_state['user_select_file']
             
             feature_files = [f for f in os.listdir(files_path) 
                             if f.endswith('ms1.feature')]
+            prsm_files = [f for f in os.listdir(files_path) 
+                    if f.endswith('_toppic_prsm_single.tsv')]
+            
             if not feature_files:
                 st.error("❌ 未找到特征文件")
                 return False
                 
             file_path = os.path.join(files_path, feature_files[0])
             self.df = pd.read_csv(file_path, sep='\t')
-            
+
+            if prsm_files:
+                prsm_path = os.path.join(files_path, prsm_files[0])
+                self.df2 = pd.read_csv(prsm_path, sep='\t',skiprows=37)
+            else:
+                st.warning("⚠️ 未找到PrSM数据文件")
+                self.df2 = pd.DataFrame()
+                
             self.mass_col = self._find_column(self.column_map['mass'])
             if self.mass_col:
                 self.df[self.mass_col] = self.df[self.mass_col].astype(float)
+                self.feature_col = self._find_column(self.column_map['feature'])
                 self.time_col = self._find_column(self.column_map['time'])
                 self.intensity_col = self._find_column(self.column_map['intensity'])
                 self.start_time_col = self._find_column(self.column_map['start_time'])
@@ -443,8 +466,29 @@ class Featuremap():
             if col in self.df.columns:
                 return col
         return None
-    
+
+
+    def _get_prsm_id(self, ID):
+        """根据featureID查询prsmID"""
+        local_ip = ServerControl.get_local_ip()
+        if self.df2.empty:
+            return pd.DataFrame()
+            
+        matches = self.df2[self.df2['Feature ID'] == ID]
+        if matches.empty:
+            return pd.DataFrame()
+            
+        # 创建包含链接的DataFrame
+        result_df = matches.copy()
+        result_df['URL'] = result_df['Prsm ID'].apply(
+            lambda x: f"http://{local_ip}:8000/topmsv/visual/proteins.html?folder=../../toppic_prsm_cutoff/data_js&prsm={x}"
+        )
+        return result_df
+
 if __name__ == "__main__":
     heatmap = Featuremap()
     heatmap.run()
+
+
+
 
