@@ -13,9 +13,8 @@ class ReportPage():
         self.df = None
 
     def run(self):
-        
         if not st.session_state.get('user_select_file'):
-            st.error("请先选择文件")
+            st.error("请先选择送样信息!")
             return 
         else:
             self._sidebar()
@@ -107,7 +106,9 @@ class ReportPage():
             st.markdown("\n".join(results))
         except Exception as e:
             st.sidebar.error(f"文件统计失败: {str(e)}")
+
     def _sidebar(self):
+        """共同侧边栏配置"""
         with st.sidebar:
             if st.button("退出登录",key="logout"):
                 st.session_state["authentication_status"] = False
@@ -117,6 +118,10 @@ class ReportPage():
             if st.button("重新选择文件", key="btn_reselect_show"):
                 st.session_state['user_select_file'] = None
                 st.rerun()
+            #选择样品
+            file_utils = FileUtils()
+            samples = file_utils.list_samples()
+            st.session_state["sample"]=st.selectbox("选择检测样品",samples)
             
     def _display_data_grid(self):
         """配置AgGrid列显示"""

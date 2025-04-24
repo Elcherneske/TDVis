@@ -3,7 +3,6 @@ import pandas as pd
 import os
 from st_aggrid import AgGrid, GridOptionsBuilder
 from .FileUtils import FileUtils  
-import os
 from .ServerUtils import ServerControl
 
 
@@ -39,11 +38,7 @@ class ToppicShowPage():
         file_map = {}
         for filename in all_files:
             for suffix in self.file_suffixes.values():
-                if filename.endswith(suffix):
-                    # 处理可能存在的重复后缀情况（取第一个匹配的）
-                    if suffix not in file_map:
-                        file_map[suffix] = os.path.join(base_path, filename)
-                    break
+                file_map[suffix] = FileUtils.get_file_path(suffix)
         return file_map
 
     def show_toppic(self):

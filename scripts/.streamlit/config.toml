@@ -8,7 +8,7 @@ host= "localhost"
 port= "5432"
 dbname= "postgres"
 user= "postgres"
-password= "041104"
+password= "314810"
 
 
 [server]

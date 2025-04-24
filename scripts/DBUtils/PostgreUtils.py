@@ -74,6 +74,13 @@ class PostgreUtils:
         finally:
             cursor.close()
             conn.close()
+            
+    def param_placeholder(self) -> str:
+        """
+        返回PostgreSQL的参数占位符
+        :return: 占位符字符串
+        """
+        return "%s"
     def create_table(self, table_name: str, columns: List[str]) -> None:
         """
         创建数据表
@@ -227,23 +234,30 @@ class PostgreUtils:
             cursor.close()
             conn.close()
 
-    def delete_data(self, table_name: str, condition: str) -> None:
+    def delete_data(self, table_name: str, condition: str, params: tuple = None) -> None:
         """
         删除数据
         :param table_name: 表名
         :param condition: WHERE条件语句
+        :param params: 参数元组(可选)
         """
         try:
             conn, cursor = self._connect()
-            delete_query = f"DELETE FROM {table_name} WHERE {condition}"
-            cursor.execute(delete_query)
+            if params:
+                delete_query = "DELETE FROM {} WHERE {}".format(table_name, condition)
+                cursor.execute(delete_query, params)
+            else:
+                delete_query = f"DELETE FROM {table_name} WHERE {condition}"
+                cursor.execute(delete_query)
             conn.commit()
         except Exception as e:
             conn.rollback()
             raise Exception(f"删除数据失败: {str(e)}")
         finally:
-            cursor.close()
-            conn.close()
+            if cursor and not cursor.closed:
+                cursor.close()
+            if conn and not conn.closed:
+                conn.close()
 
     def drop_table(self, table_name: str) -> None:
         """
@@ -281,4 +295,3 @@ class PostgreUtils:
         finally:
             cursor.close()
             conn.close()
-

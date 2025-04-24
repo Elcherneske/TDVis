@@ -1,138 +1,237 @@
-import streamlit as st
-from DBUtils import DBUtils
-from Pages.FunctionPages.FileUtils import FileUtils  
+import json  # Add json module import
+import pandas as pd
+from .PostgreUtils import PostgreUtils
+from .SqliteUtils import SqliteUtils
+import hashlib
 
-class AdminPage():
-    def __init__(self, args):
+class DBUtils:
+    def __init__(self,args):
         self.args = args
-        self.db_utils = DBUtils(args)  # 添加: 初始化DBUtils
+        db_mode = self.args.get_config("Database", "mode")
+        if db_mode == "sqlite":
+            self.db = SqliteUtils(self.args)
+        elif db_mode == "postgresql":
+            self.db = PostgreUtils(self.args)
+        else:
+            raise ValueError(f"不支持的数据库模式: {db_mode}")
 
-    def run(self):
-        self.show_admin_page()
-    def show_admin_page(self):
-        with st.sidebar:
-            if st.button("退出"):
-                st.session_state['authentication_status'] = None
-                st.rerun()
-        st.title("管理员页面")
+    @staticmethod
+    def encode_password(password: str) -> str:
+        """_summary_
+        对密码进行的哈希加密方式(后续可以该换其他的加密方式)
+        """
+        return hashlib.sha256(password.encode()).hexdigest()
         
-        modify_tab, add_tab, files_tab, file_manage_tab = st.tabs(
-            ["修改用户", "添加用户", "查看数据", "文件管理"]
+    def user_login(self, username: str, password: str) -> pd.DataFrame:
+        """
+        用户登录
+        :param username: 用户名
+        :param password: 存储的加密密码
+        :return: 用户信息
+        """
+        # 查询用户信息
+        encoded_password = self.encode_password(password)
+        return self.db.select_data_to_df(
+            "users",
+            columns=["*"],
+            condition="username = %s AND password = %s",
+            params=(username, encoded_password)
         )
+
+    def user_register(self, username: str, password: str, role: str) -> bool:
+        """
+        用户注册
+        """
+        try:
+            # 参数化查询防止SQL注入
+            user_info = self.db.select_data_to_df(
+                "users", 
+                columns=["*"], 
+                condition="username = %s",  # 占位符方式
+                params=(username,)
+            )
+            
+            if not user_info.empty:
+                return False
+
+            encoded_password = self.encode_password(password)
+            # 使用参数化插入
+            return self.db.insert_data(
+                "users",
+                columns=["username", "password", "role","file_addresses"],
+                values=(username, encoded_password, role,'[]' )
+            )
+        except Exception as e:
+            print(f"注册失败: {str(e)}")
+            return False
         
-        users = self.db_utils.query_users(conditions="", limit=10, offset=0)
-        users = users.drop(columns=["password","file_addresses"])
-        users["is_selected"] = False
-        with modify_tab:
-            config = {
-                "username": st.column_config.TextColumn("用户名"),
-                "role": st.column_config.SelectboxColumn("角色", options=["admin", "user"]),
-                "is_selected": st.column_config.CheckboxColumn("是否删除")
-            }
-            
-            edited_df = st.data_editor(users, column_config=config, key="user_data_editor")
-            if st.button("更新和删除用户"):
-                try:
-                    # 删除操作
-                    deleted_users = edited_df[edited_df["is_selected"]]['username'].tolist()
-                    if deleted_users:
-                        if not self.db_utils.delete_users(deleted_users):
-                            raise ValueError("删除用户失败")
-                    
-                    # 更新操作
-                    updated_rows = edited_df[~edited_df["is_selected"]]
-                    
-                    for idx in updated_rows.index:
-                        row = updated_rows.loc[idx]
-                        original_username = users.loc[idx, 'username']
-                        original_role=users.loc[idx,'role']
-                        
-                        if not self.db_utils.update_user(original_username, row['username'],original_role, row['role']):
-                            raise ValueError(f"更新用户 {original_username} 失败")
-                    
-                    st.success("用户信息已更新")
-                except Exception as e:
-                    st.error(f"操作失败: {str(e)}")
+    def query_users(self, conditions: str, limit: int, offset: int) -> pd.DataFrame:
+        """
+        查询用户
+        :param conditions: 条件
+        :param limit: 限制
+        :param offset: 偏移
+        :return: 查询结果DataFrame,包含数据库类型信息
+        """
+        try:
+            # 查询用户数据
+            user_info = self.db.select_data_to_df("users", columns=["*"], condition=conditions, limit=limit, offset=offset)
+            # 添加数据库类型信息
+            user_info.index = user_info.index+1
+            return user_info
+        except Exception as e:
+            print(f"查询用户失败: {str(e)}")
+            return pd.DataFrame()  
 
-        with add_tab:
-            add_form = st.form("add_user_form")
-            username = add_form.text_input("用户名")
-            password = add_form.text_input("密码", type="password")
-            role = add_form.selectbox("角色", ["admin", "user"])
-            # 添加用户按钮
-            if add_form.form_submit_button("添加用户"):
-                self.db_utils.user_register(username, password, role)
-                st.rerun()
+    def delete_users(self, usernames: list) -> bool:
+        """删除多个用户"""
+        try:
+            self.db.begin_transaction()
+            placeholders = ','.join([self.db.param_placeholder()] * len(usernames))
+            query = f"DELETE FROM users WHERE username IN ({placeholders})"
+            affected_rows = self.db.execute_non_query(query, tuple(usernames))
+            
+            if affected_rows != len(usernames):
+                self.db.rollback_transaction()
+                return False
                 
-        with files_tab:
-            #管理员实验数据查看表单
-            df = FileUtils.query_files()#不加入用户名,从而获得查询所有数据的权限
-            if not df.empty:
-                df["file_select"] = False  # 添加选择列
-                df.index = df.index + 1
-                config = {
-                    "用户名": st.column_config.TextColumn("用户目录"),
-                    "文件名": st.column_config.TextColumn("文件名"),
-                    "file_select": st.column_config.CheckboxColumn("选择状态")
-                }
+            self.db.commit_transaction()
+            return True
+        except Exception as e:
+            self.db.rollback_transaction()
+            print(f"[ERROR] 删除用户失败: {str(e)}")
+            return False
 
-                select_df = st.data_editor(
-                    df,
-                    column_config=config,
-                    key="admin_data_editor",
-                    width=800,
-                    height=400
-                )
+    def update_password(self, username: str, old_password: str, new_password: str) -> bool:
+        """
+        更新用户密码
+        :param username: 用户名
+        :param old_password: 原密码（未加密）
+        :param new_password: 新密码（未加密）
+        """
+        try:
+            # 验证旧密码
+            if self.user_login(username, old_password).empty:
+                return False
+            
+            # 加密新密码
+            encoded_new_password = self.encode_password(new_password)
+            
+            # 执行参数化更新
+            query = "UPDATE users SET password = %s WHERE username = %s"
+            return self.db.execute_non_query(query, (encoded_new_password, username)) > 0
+        except Exception as e:
+            print(f"密码更新失败: {str(e)}")
+            return False
 
-            if st.button("选择文件"):
-                user_name=select_df[select_df['file_select'] == True]['用户名'].tolist()
-                user_name=str(user_name[0])
-                file_name=select_df[select_df['file_select'] == True]['文件名'].tolist()
+    def update_user(self, old_username: str, new_username: str, old_role: str, new_role: str) -> bool:
+        """Update user information with improved transaction handling"""
+        try:
+            if old_username != new_username or old_role != new_role:
+                # Build the update query
+                set_clause = []
+                params = []
                 
-                st.session_state['user_select_file'] =file_name
-                st.session_state['authentication_username'] = user_name
-                st.session_state['current_page'] = "showpage"
-                st.rerun()  
-        with file_manage_tab:
-            st.header("用户文件管理")
-            
-            # User selection
-            user_list = self.db_utils.query_users("", 100, 0)['username'].tolist()
-            selected_user = st.selectbox("选择用户", user_list)
-            
-            # Display current file addresses
-            current_files = self.db_utils.get_file_addresses(selected_user)
-            st.write("当前文件地址列表:")
-            st.json(current_files)
-            
-            # File addition interface
-            with st.form("add_file_form"):
-                new_file_path = st.text_input("文件路径")
-                col1, col2 = st.columns([1, 4])
-                with col1:
-                    if st.form_submit_button("添加单个文件"):
-                        if new_file_path:
-                            success = self.db_utils.add_file_address(selected_user, new_file_path)
-                            if success:
-                                st.success(f"成功添加文件: {new_file_path}")
-                                st.rerun()
-                            else:
-                                st.error("添加文件失败")
-                with col2:
-                    if st.form_submit_button("批量添加文件"):
-                        # Implement batch file addition logic
-                        pass
-            
-            # File removal interface
-            if current_files:
-                selected_files = st.multiselect("选择要删除的文件", current_files)
-                if st.button("删除选中文件"):
-                    # Implement file removal logic
-                    updated_files = [f for f in current_files if f not in selected_files]
-                    success = self.db_utils.update_file_addresses(selected_user, updated_files)
-                    if success:
-                        st.success("文件删除成功")
-                        st.rerun()
+                if old_username != new_username:
+                    set_clause.append("username = %s")
+                    params.append(new_username)
+                
+                if old_role != new_role:
+                    set_clause.append("role = %s")
+                    params.append(new_role)
+                
+                # Add the condition parameter
+                params.append(old_username)
+                
+                # Execute the update
+                query = f"UPDATE users SET {', '.join(set_clause)} WHERE username = %s"
+                affected_rows = self.db.execute_non_query(query, tuple(params))
+                
+                return affected_rows > 0
+            return True
+        except Exception as e:
+            print(f"[ERROR] 更新用户失败: {str(e)}")
+            return False
 
-
+    def add_file_address(self, username: str, file_path: str) -> bool:
+        #自动将双引号过滤掉,确保能够被识别为windows中的地址
+        sanitized_path = file_path.replace('"', '')  # Remove all double quotes
+        
+        try:
+            if isinstance(self.db, PostgreUtils):
+                placeholder = "%s"
+            elif isinstance(self.db, SqliteUtils):
+                placeholder = "?"
+            else:
+                raise ValueError("Unsupported database type")
             
+            array_append_expr = self.json_array_append("file_addresses", "$", placeholder)
+            query = (
+                f"UPDATE users SET file_addresses = {array_append_expr} "
+                f"WHERE username = {placeholder}"
+            )
+            
+            params = (sanitized_path, username) 
+            
+            self.db.execute_non_query(query, params=params)
+            return True
+                
+        except Exception as e:
+            print(f"Failed to add file address: {str(e)}")
+            return False
+
+    def get_file_addresses(self, username: str) -> list:
+        try:
+            result = self.db.select_data_to_df(
+                "users",
+                columns=["file_addresses"],
+                condition="username = %s",  # PostgreSQL 使用 %s 占位符
+                params=(username,),
+                limit=0,
+                offset=0
+            )
+            return result.iloc[0]['file_addresses'] if not result.empty else []
+        except Exception as e:
+            print(f"Error retrieving file addresses: {str(e)}")
+            return []
+
+    def update_file_addresses(self, username: str, file_addresses: list) -> bool:
+        """
+        Update file addresses for a user
+        :param username: The username to update
+        :param file_addresses: List of file addresses
+        :return: True if successful, False otherwise
+        """
+        try:
+            # Convert list to JSON string
+            file_addresses_json = json.dumps(file_addresses)
+            
+            # Build update query
+            query = "UPDATE users SET file_addresses = %s WHERE username = %s"
+            
+            # Execute query
+            self.db.execute_non_query(query, (file_addresses_json, username))
+            return True
+        except Exception as e:
+            print(f"Failed to update file addresses: {str(e)}")
+            return False
+
+    def delete_data(self, table_name: str, condition: str) -> None:
+        """
+        删除数据
+        :param table_name: 表名
+        :param condition: WHERE条件语句
+        """
+        try:
+            self.db.delete_data(table_name, condition)
+        except Exception as e:
+            print(f"删除数据失败: {str(e)}")
+            raise Exception(f"删除数据失败: {str(e)}")
+
+    def json_array_append(self, column: str, path: str, placeholder: str) -> str:
+        if isinstance(self.db, PostgreUtils):
+            return f"{column}::jsonb || jsonb_build_array({placeholder})"
+        elif isinstance(self.db, SqliteUtils):
+            return f"json_insert({column}, '$[#]', {placeholder})"
+        else:
+            raise ValueError("Unsupported database type")

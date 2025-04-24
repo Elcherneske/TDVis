@@ -3,8 +3,8 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 from .ServerUtils import ServerControl
+from .FileUtils import FileUtils
 import os
-
 
 class Featuremap():
     def __init__(self):
@@ -36,60 +36,62 @@ class Featuremap():
         st.header("**MS1 Featuremap**")
         if not self._validate_selection():
             return
-            
+
         if self._load_data():
-            self._setup_controls()
-            self._plot_heatmap()
-            
-            # 质量范围和时间范围设置容器
-            with st.expander("**积分范围手动设置**"):
-                manual=st.checkbox("手动设置积分范围", value=False, key='manual')
-                if manual:
-                    with st.container():
-                        col1, col2 = st.columns(2)
-                        # 质量范围设置列
-                        with col1:
-                            st.write("质量范围设置")
-                            mass_min0 = float(self.df[self.mass_col].min())
-                            mass_max0 = float(self.df[self.mass_col].max())
-                            mass_max = st.number_input("积分质量上界", 
-                                min_value=mass_min0, 
-                                max_value=mass_max0, 
-                                value=mass_max0,
-                                key='mass_max')
-                            mass_min = st.number_input("积分质量下界", 
-                                min_value=mass_min0, 
-                                max_value=mass_max0, 
-                                value=mass_min0,
-                                key='mass_min')
-                            self.mass_range = (mass_min, mass_max)
+            with st.container():
+                self._setup_controls()
+                self._plot_heatmap()
+        
+            with st.container():
+                # 质量范围和时间范围设置容器
+                with st.expander("**积分范围手动设置**"):
+                    manual=st.checkbox("手动设置积分范围", value=False, key='manual')
+                    if manual:
+                        with st.container():
+                            col1, col2 = st.columns(2)
+                            # 质量范围设置列
+                            with col1:
+                                st.write("质量范围设置")
+                                mass_min0 = float(self.df[self.mass_col].min())
+                                mass_max0 = float(self.df[self.mass_col].max())
+                                mass_max = st.number_input("积分质量上界", 
+                                    min_value=mass_min0, 
+                                    max_value=mass_max0, 
+                                    value=mass_max0,
+                                    key='mass_max')
+                                mass_min = st.number_input("积分质量下界", 
+                                    min_value=mass_min0, 
+                                    max_value=mass_max0, 
+                                    value=mass_min0,
+                                    key='mass_min')
+                                self.mass_range = (mass_min, mass_max)
 
-                        # 时间范围设置列
-                        with col2:
-                            st.write("时间范围设置")
-                            time_min0 = float(self.df[self.time_col].min())
-                            time_max0 = float(self.df[self.time_col].max())
-                            time_max = st.number_input("积分时间上界", 
-                                                    min_value=time_min0, 
-                                                    max_value=time_max0, 
-                                                    value=time_max0,
-                                                    key='time_max')
-                            time_min = st.number_input("积分时间下界", 
-                                                    min_value=time_min0, 
-                                                    max_value=time_max0, 
-                                                    value=time_min0,
-                                                    key='time_min')
+                            # 时间范围设置列
+                            with col2:
+                                st.write("时间范围设置")
+                                time_min0 = float(self.df[self.time_col].min())
+                                time_max0 = float(self.df[self.time_col].max())
+                                time_max = st.number_input("积分时间上界", 
+                                                        min_value=time_min0, 
+                                                        max_value=time_max0, 
+                                                        value=time_max0,
+                                                        key='time_max')
+                                time_min = st.number_input("积分时间下界", 
+                                                        min_value=time_min0, 
+                                                        max_value=time_max0, 
+                                                        value=time_min0,
+                                                        key='time_min')
 
-                            self.time_range = (time_min, time_max)
-            
-            # 重新处理积分数据并绘图
-            integrated_data = self._process_integration()
-            self._plot_spectrum(integrated_data)
+                                self.time_range = (time_min, time_max)
+                
+                # 重新处理积分数据并绘图
+                integrated_data = self._process_integration()
+                self._plot_spectrum(integrated_data)
 
-            featureid=st.number_input("Prsm查询:根据输入的Feature ID来查找prsm", key='neighbor_range')
-            if st.button("查询"):
-                prsmid=self._get_prsm_id(featureid)
-                st.write(prsmid["URL"])         
+                featureid=st.number_input("Prsm查询:根据输入的Feature ID来查找prsm", key='neighbor_range')
+                if st.button("查询"):
+                    prsmid=self._get_prsm_id(featureid)
+                    st.write(prsmid["URL"])         
 
     def _setup_controls(self):
         """核心控制组件"""
@@ -164,6 +166,7 @@ class Featuremap():
         except Exception as e:
             st.error(f"数据处理失败: {str(e)}")
             return None
+
     def _plot_heatmap(self):
         """Visualize features as time-range bars with transparency"""
         fig = go.Figure()
@@ -238,7 +241,7 @@ class Featuremap():
                 pass  # 保持当前范围不重置
             except ValueError as e:
                 st.error(f"范围值错误: {str(e)}")
-        
+
     def _plot_spectrum(self, data):
         if data is None:
             return
@@ -318,6 +321,7 @@ class Featuremap():
                 st.markdown("**注**:峰之间的距离可以体现其PTMS信息")
                 st.markdown("常见的PTMS修饰有:")
                 st.markdown("• **15**: 甲基化")
+                st.markdown("或许可以展示为一个表格")
 
         if event_data.selection:
             # 添加主峰标注
@@ -388,29 +392,22 @@ class Featuremap():
     def _load_data(self):
         """数据加载与校验"""
 
-        #加载feature1文件
         try:
-            files_path = st.session_state['user_select_file']
+            # feature数据以及prsm数据的加载
+            feature_path = FileUtils.get_file_path('_ms1.feature')
+            prsm_path = FileUtils.get_file_path('_ms2_toppic_prsm_single.tsv')
             
-            feature_files = [f for f in os.listdir(files_path) 
-                            if f.endswith('ms1.feature')]
-            prsm_files = [f for f in os.listdir(files_path) 
-                    if f.endswith('_toppic_prsm_single.tsv')]
-            
-            if not feature_files:
+            if not feature_path:
                 st.error("❌ 未找到特征文件")
                 return False
-                
-            file_path = os.path.join(files_path, feature_files[0])
-            self.df = pd.read_csv(file_path, sep='\t')
+            self.df = pd.read_csv(feature_path, sep='\t')
 
-            if prsm_files:
-                prsm_path = os.path.join(files_path, prsm_files[0])
-                self.df2 = pd.read_csv(prsm_path, sep='\t',skiprows=37)
-            else:
-                st.warning("⚠️ 未找到PrSM数据文件")
-                self.df2 = pd.DataFrame()
-                
+            if not prsm_path:
+                st.error("❌ 未找到PrSM数据文件")
+                return False
+
+            self.df2 = pd.read_csv(prsm_path, sep='\t',skiprows=37)
+
             self.mass_col = self._find_column(self.column_map['mass'])
             if self.mass_col:
                 self.df[self.mass_col] = self.df[self.mass_col].astype(float)
@@ -437,16 +434,13 @@ class Featuremap():
         """查找指定质量附近的邻近峰"""
         if data.empty or pd.isna(target_mass):
             return pd.DataFrame()
-
         # 获取邻近峰数据（±neighbor_range范围）
         mass_col = self.mass_col
         lower_bound = target_mass - self.neighbor_range
         upper_bound = target_mass + self.neighbor_range
-        
         neighbors = data[
             (data[mass_col].between(lower_bound, upper_bound)) &
-            (data["Normalized Intensity"] >= self.neighbour_limit) &
-            (~np.isclose(data[mass_col], target_mass, atol=1e-4))  # 排除主峰
+            (data["Normalized Intensity"] >= self.neighbour_limit) # 排除主峰
         ].copy()
 
         if neighbors.empty:
@@ -479,7 +473,7 @@ class Featuremap():
         # 创建包含链接的DataFrame
         result_df = matches.copy()
         result_df['URL'] = result_df['Prsm ID'].apply(
-            lambda x: f"http://{local_ip}:8000/topmsv/visual/proteins.html?folder=../../toppic_prsm_cutoff/data_js&prsm={x}"
+            lambda x: f"http://{local_ip}:8000/topmsv/visual/proteins.html?folder=../../toppic_prsm_cutoff/data_js&prsm_id={x}"
         )
         return result_df
 
