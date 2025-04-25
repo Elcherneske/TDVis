@@ -13,13 +13,14 @@ class ReportPage():
         self.df = None
 
     def run(self):
+        self._sidebar()
         if not st.session_state.get('user_select_file'):
             st.error("请先选择送样信息!")
-            return 
+            return
         else:
-            self._sidebar()
             selected_file = st.session_state["user_select_file"]   
             file_suffix = os.path.splitext(selected_file)[1]
+            
             if file_suffix == ".pptx":
                 with open(selected_file, 'rb') as file:
                     st.download_button(
@@ -38,9 +39,32 @@ class ReportPage():
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                         icon=":material/download:",
                     )
-                    st.rerun()
             else:
                 self.show_report_page()
+
+    def _sidebar(self):
+        """整合所有侧边栏组件"""
+        with st.sidebar:
+            if st.button("退出登录",key="logout"):
+                st.session_state["authentication_status"] = False
+                st.session_state['user_select_file'] = ""
+                st.session_state['authentication_username'] = ""
+                st.rerun()
+            if st.button("重新选择文件", key="btn_reselect_show"):
+                st.session_state['user_select_file'] = None
+                st.rerun()
+            
+            # 取消注释并启用样品选择器
+            if st.session_state.get('user_select_file'):
+                file_suffix = os.path.splitext(st.session_state['user_select_file'])[1]
+                if file_suffix not in [".pptx", ".docx"]:
+                    file_utils = FileUtils()
+                    samples = file_utils.list_samples()
+                    st.selectbox(  # 直接使用返回值，无需操作session_state
+                        "选择检测样品", 
+                        samples,
+                        key="sample_selection"  # 使用新的唯一key
+                    )
         
     def show_report_page(self):
         
@@ -55,7 +79,7 @@ class ReportPage():
         with report_tab:
             self._count_report_files()
             if feature_files:
-                self.selected_file = st.selectbox("选择特征文件", feature_files)
+                self.selected_file = st.selectbox("选择特征文件", feature_files,key="feature_file")
             self.df = pd.read_csv(self.selected_file, sep='\t')
             self._display_data_grid()
             
@@ -106,22 +130,6 @@ class ReportPage():
             st.markdown("\n".join(results))
         except Exception as e:
             st.sidebar.error(f"文件统计失败: {str(e)}")
-
-    def _sidebar(self):
-        """共同侧边栏配置"""
-        with st.sidebar:
-            if st.button("退出登录",key="logout"):
-                st.session_state["authentication_status"] = False
-                st.session_state['user_select_file'] = ""
-                st.session_state['authentication_username'] = ""
-                st.rerun()
-            if st.button("重新选择文件", key="btn_reselect_show"):
-                st.session_state['user_select_file'] = None
-                st.rerun()
-            #选择样品
-            file_utils = FileUtils()
-            samples = file_utils.list_samples()
-            st.session_state["sample"]=st.selectbox("选择检测样品",samples)
             
     def _display_data_grid(self):
         """配置AgGrid列显示"""

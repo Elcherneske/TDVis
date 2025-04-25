@@ -74,7 +74,6 @@ class FileUtils:
             if filename.endswith(target_suffix):
                 return os.path.join(selected_path, filename)
         raise FileNotFoundError(f"未找到HTML报告文件: {target_suffix}")
-    
     @staticmethod
     def get_file_path(suffix):
         selected_path = st.session_state['user_select_file']

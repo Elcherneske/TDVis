@@ -88,10 +88,13 @@ class Featuremap():
                 integrated_data = self._process_integration()
                 self._plot_spectrum(integrated_data)
 
+
+    
                 featureid=st.number_input("Prsm查询:根据输入的Feature ID来查找prsm", key='neighbor_range')
                 if st.button("查询"):
                     prsmid=self._get_prsm_id(featureid)
-                    st.write(prsmid["URL"])         
+                    st.write(prsmid["URL"])
+        self._PTMS_self_design()         
 
     def _setup_controls(self):
         """核心控制组件"""
@@ -297,8 +300,15 @@ class Featuremap():
             
             except (StopIteration, KeyError):
                 return
+        
+        self._near_peak_widget(data)
+        if event_data.selection:
+            self._near_peak_show(data, selected_mass)
 
-        # 邻近峰筛选组件
+    def _near_peak_widget(self, data):
+        """
+        添加邻近峰筛选的控制功能
+        """
         with st.expander("**邻近峰筛选**", expanded=True):
             # 添加主峰和邻近峰标注
             col1, col2 = st.columns(2)
@@ -311,7 +321,7 @@ class Featuremap():
                     step=0.1
                 )
                 self.neighbour_limit = st.number_input(
-                    "阈值控制",
+                    "阈值控制(%)[根据峰强度来进行筛选]",
                     min_value=0.00,
                     value=3.00,
                     max_value=100.00,
@@ -323,43 +333,26 @@ class Featuremap():
                 st.markdown("• **15**: 甲基化")
                 st.markdown("或许可以展示为一个表格")
 
-        if event_data.selection:
-            # 添加主峰标注
-            fig.add_trace(go.Scatter(
-                x=[selected_mass],
-                y=[data[data[self.mass_col] == selected_mass]['Normalized Intensity'].values[0]],
-                mode='markers',
-                marker=dict(color='red', size=12),
-                name='Selected Peak'
-            ))
-            
+
+    def _near_peak_show(self, data, selected_mass):
             # 查找并添加邻近峰
-            neighbors = self._find_nearest_peaks(selected_mass, data)
-            if not neighbors.empty:
-                fig.add_trace(go.Scatter(
-                    x=neighbors[self.mass_col],
-                    y=neighbors['Normalized Intensity'],
-                    mode='markers',
-                    marker=dict(color='orange', size=10, symbol='x'),
-                    name='Neighboring Peaks',
-                    hoverinfo='text',
-                    text=[f"质量: {m:.4f} Da<br>强度: {i:.1f}%" for m,i in zip(neighbors[self.mass_col], neighbors['Normalized Intensity'])]
-                ))
+        neighbors = self._find_nearest_peaks(selected_mass, data)
+        st.write(f"选中质量: {selected_mass:.4f} Da")
+        if not neighbors.empty:
+            st.write("**邻近峰信息**")
             st.write(f"选中质量: {selected_mass:.4f} Da")
-            if not neighbors.empty:
-                st.write("**邻近峰信息**")
-                st.write(f"选中质量: {selected_mass:.4f} Da")
-                # 显示包含PrSM ID的表格
-                # 优化显示列名和格式
-                display_columns = {
-                    'Monoisotopic_mass': '质量 (Da)',
-                    'mass_diff': '质量差',
-                    'PrSM_ID': 'PrSM ID'
-                }
-                neighbors_display = neighbors[['Monoisotopic_mass', 'mass_diff','Feature_ID']].rename(columns=display_columns)
-                st.write(neighbors_display)
-            else:
-                st.warning("在指定范围内未找到邻近峰")
+            # 显示包含PrSM ID的表格
+            # 优化显示列名和格式
+            display_columns = {
+                'Monoisotopic_mass': '质量 (Da)',
+                'mass_diff': '质量差',
+                'PrSM_ID': 'PrSM ID'
+            }
+            neighbors_display = neighbors[['Monoisotopic_mass', 'mass_diff','Feature_ID']].rename(columns=display_columns)
+            st.write(neighbors_display)
+        else:
+            st.warning("在指定范围内未找到邻近峰")
+
     def _apply_scale(self, series):
         """应用强度转换并归一化"""
         # 原始转换
@@ -430,6 +423,7 @@ class Featuremap():
         except Exception as e:
             st.error(f"⛔ 数据加载失败: {str(e)}")
             return False
+
     def _find_nearest_peaks(self, target_mass, data):
         """查找指定质量附近的邻近峰"""
         if data.empty or pd.isna(target_mass):
@@ -446,8 +440,8 @@ class Featuremap():
         if neighbors.empty:
             return neighbors
 
-        # 计算精确质量差（保留4位小数）
-        neighbors["mass_diff"] = (neighbors[mass_col] - target_mass).round(4)
+        # 计算精确质量差（保留6位小数）
+        neighbors["mass_diff"] = (neighbors[mass_col] - target_mass).round(6)
         
         # 按质量差差绝对值排序并截断结果
         return neighbors.sort_values("mass_diff")
@@ -459,17 +453,16 @@ class Featuremap():
                 return col
         return None
 
-
     def _get_prsm_id(self, ID):
         """根据featureID查询prsmID"""
         local_ip = ServerControl.get_local_ip()
         if self.df2.empty:
             return pd.DataFrame()
-            
+
         matches = self.df2[self.df2['Feature ID'] == ID]
         if matches.empty:
             return pd.DataFrame()
-            
+
         # 创建包含链接的DataFrame
         result_df = matches.copy()
         result_df['URL'] = result_df['Prsm ID'].apply(
@@ -477,10 +470,63 @@ class Featuremap():
         )
         return result_df
 
+    def _match_PTMS(self, mass):
+        """根据质量匹配PTMS信息"""
+        # 示例：简单的PTMS匹配
+        if mass > 100 and mass < 200:
+            return "15N"
+
+    def _PTMS_self_design(self):
+        """自定义PTMS质量差匹配规则"""
+        with st.expander("自定义PTMS信息匹配"):
+            # 初始化session状态
+            if 'ptms_entries' not in st.session_state:
+                st.session_state.ptms_entries = [
+                    {"mass_diff": 15.994915, "name": "氧化"},
+                    {"mass_diff": 42.010565, "name": "乙酰化"}
+                ]
+
+            col_add, col_del, _ = st.columns([1,1,3])
+
+            with col_add:
+                if st.button("➕ 添加PTMS规则", help="最多支持10条规则"):
+                    if len(st.session_state.ptms_entries) < 10:
+                        st.session_state.ptms_entries.append({"mass_diff": 0.0, "name": ""})
+            with col_del:
+                if st.button("➖ 删除最后一条", help="至少保留一条规则"):
+                    if len(st.session_state.ptms_entries) > 1:
+                        st.session_state.ptms_entries.pop()
+            #先给出默认的内容
+            updated_entries = []
+            
+            for i, entry in enumerate(st.session_state.ptms_entries):
+                cols = st.columns([2,3])
+                with cols[0]:
+                    new_mass = st.number_input(
+                        f"质量差 (Da) #{i+1}",
+                        min_value=-1000.0,
+                        max_value=1000.0,
+                        value=entry["mass_diff"],
+                        step=0.0001,
+                        format="%.4f",
+                        key=f"ptms_mass_{i}"
+                    )
+                with cols[1]:
+                    new_name = st.text_input(
+                        f"修饰类型 #{i+1}",
+                        value=entry["name"],
+                        placeholder="例如：磷酸化",
+                        key=f"ptms_name_{i}"
+                    )
+                updated_entries.append({"mass_diff": new_mass, "name": new_name})  # 正确追加新条目
+            st.session_state.ptms_entries = updated_entries  # 最后统一更新
+            if st.button("应用PTMS规则", type="primary"):
+                ptms_rules = {round(entry["mass_diff"],4): entry["name"] 
+                                for entry in st.session_state.ptms_entries}
+                st.success(f"已应用{len(ptms_rules)}条PTMS匹配规则")
+
 if __name__ == "__main__":
     heatmap = Featuremap()
     heatmap.run()
-
-
 
 

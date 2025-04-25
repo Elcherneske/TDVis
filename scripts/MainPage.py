@@ -79,7 +79,8 @@ class MainPage():
             'authentication_status': False,
             'authentication_username': "",
             'authentication_role': "",
-            'user_select_file': ""
+            'user_select_file': "",
+            "sample":"",
         }
         for key, value in defaults.items():
             if key not in st.session_state:
