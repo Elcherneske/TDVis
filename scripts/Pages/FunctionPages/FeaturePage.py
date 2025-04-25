@@ -2,6 +2,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
+import json
 from .ServerUtils import ServerControl
 from .FileUtils import FileUtils
 import os
@@ -10,8 +11,8 @@ class Featuremap():
     def __init__(self):
         #作图初始化
         self.df = None
-        self.time_range = (300,1000)      # 积分时间范围
-        self.mass_range = (300,1000)     # 积分质量范围 
+        self.time_range = None      # 积分时间范围
+        self.mass_range = None    # 积分质量范围 
         self.log_scale = 'None'      # 强度显示方式
 
         #数据读取列名初始化
@@ -31,10 +32,11 @@ class Featuremap():
         self.intensity_col = None  # 实际强度列名
 
         #PTMs匹配参数初始化
+        self.selected_mass = None  # 存储用户选择的质量
         self.neighbor_range = 20  # 默认邻近峰质量范围
         self.neighbour_limit = 0  # 默认邻近峰强度阈值
         self.ptms = [{"mass_diff": 15.994915, "name": "氧化"},
-                            {"mass_diff": 42.010565, "name": "乙酰化"}]  # 存储用户输入的PTMs
+                    {"mass_diff": 42.010565, "name": "乙酰化"}]  # 存储用户输入的PTMs
         self.ppm_threshold = 5.00
 
     def run(self):
@@ -46,23 +48,25 @@ class Featuremap():
             return st.error("请选取一个文件进行分析！")
 
         if self._load_data():
-            with st.container():
+            st.markdown("`1.FeatureMap:展示特征的时间和质量分布! 请在图中进行框选以进行下一步`")
+            with st.container(border=True):
                 self._featuremap_widgets()
                 self._plot_heatmap()
                 #调用积分范围选择的小组件
-            with st.container():
-                if self.start_time_col and self.end_time_col:
+            st.markdown("`2.Integrate:对Featuremap进行积分，得到指定范围的质谱图,请在图中框选以进行下一步!`")
+            with st.container(border=True):
+                if self.time_range and self.mass_range:
                     self._integrate_widget()
-                    # 重新处理积分数据并绘图
                     integrated_data = self._process_integration()
-                    selected_mass = self._plot_spectrum(integrated_data)
-                    # 将邻近峰组件移动到主流程
-                    if selected_mass is not None:
-                        self._near_peak_widget(integrated_data)
-                        self._PTMs_DIY()
-                        neighbor = self._near_peak_process(selected_mass, integrated_data)
-                        self._near_peak_show(selected_mass,neighbor)
-                        self._request_feature_widget()
+                    self.selected_mass = self._plot_spectrum(integrated_data)
+            st.markdown("`3.PTMs:对选定范围内最强的峰进行PTMs匹配!`")
+            with st.container(border=True):
+                if self.selected_mass:
+                    self._near_peak_widget(integrated_data)
+                    self._PTMs_DIY()
+                    neighbor = self._near_peak_process(self.selected_mass, integrated_data)
+                    self._near_peak_show(self.selected_mass,neighbor)
+                    self._request_feature_widget()
 
 
 #-------------------绘图组件---------------------
@@ -189,11 +193,11 @@ class Featuremap():
                 mask = data[self.mass_col].between(mass_min, mass_max)
                 selected_data = data[mask]
                 if not selected_data.empty:
-                    selected_mass = selected_data.loc[selected_data['Normalized Intensity'].idxmax(), self.mass_col]
+                    self.selected_mass = selected_data.loc[selected_data['Normalized Intensity'].idxmax(), self.mass_col]
                 else:
                     st.warning("选择范围内无有效数据")
                     return None
-                return selected_mass  
+                return self.selected_mass  
             
             except (StopIteration, KeyError):
                 return None
@@ -219,7 +223,7 @@ class Featuremap():
                     return ("", float('inf'))
                 
                 ppm_values = [
-                    (ptm['name'], abs(abs(mass_diff) - abs(ptm['mass_diff'])) / selected_mass * 1e6)
+                    (ptm['name'], abs(abs(mass_diff) - abs(ptm['mass_diff'])) / self.selected_mass * 1e6)
                     for ptm in self.ptms
                 ]
                 best_match = min(ppm_values, key=lambda x: x[1]) if ppm_values else ("", float('inf'))
@@ -269,11 +273,11 @@ class Featuremap():
                 min_value=100, 
                 max_value=9999, 
                 value=1000,
-                help="默认显示强度最高的1000个数据点"
+                help="按照强度从高到低排序,显示最强的前n个点以清晰化其图像"
             )
 
         with st.expander("**高级配色设置**"):
-            self.use_custom = st.checkbox("启用自定义配色")
+            self.use_custom = st.checkbox("启用自定义配色",help="如果启用,则会覆盖默认的颜色配置")
             
             if self.use_custom:
                 st.markdown("**颜色节点配置**")
@@ -316,7 +320,7 @@ class Featuremap():
         with st.container():
             # 质量范围和时间范围设置容器
             with st.expander("**积分范围手动设置**"):
-                manual=st.checkbox("手动设置积分范围", value=False, key='manual')
+                manual=st.checkbox("手动设置积分范围", value=False, key='manual',help="如果您对于Featuremap的框选范围不满意,可以手动设置积分范围。框选后启用")
                 if manual:
                     with st.container():
                         col1, col2 = st.columns(2)
@@ -359,19 +363,36 @@ class Featuremap():
         """
         根据featureid来给出prsm的链接信息!
         """
-        with st.expander("**Feature请求**", expanded=True):
-            featureid=st.number_input("Prsm查询:根据输入的Feature ID来查找prsm", key='neighbor_range')
+        with st.expander("**Prsm查询**", expanded=True):
+            featureid=st.number_input("输入您感兴趣的FeatureID", key='neighbor_range',help='会返回一个带有链接的表格,E-value越小,置信度越高')
             if st.button("查询"):
                 prsmid=self._get_prsm_id(featureid)
-                # 添加排序逻辑：按E-value降序排列
                 prsmid_sorted = prsmid.sort_values(by='E-value', ascending=True).reset_index(drop=True)
-                st.write(prsmid_sorted[['URL', 'E-value']])  # 显示排序后的结果
+                
+                # 配置列参数
+                st.dataframe(
+                    prsmid_sorted[['URL', 'E-value']],
+                    column_config={
+                        "URL": st.column_config.LinkColumn(
+                            "prsm链接",
+                            help="点击查看详细prsm信息",
+                            validate="^http",
+                            max_chars=100
+                        ),
+                        "E-value": st.column_config.NumberColumn(
+                            format="%.2e",
+                            disabled=True
+                        )
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
 
     def _near_peak_widget(self, data):
         """
         添加邻近峰筛选的控制功能
         """
-        with st.expander("**邻近峰筛选**", expanded=True):
+        with st.expander(" **邻近峰筛选:** 以框选区域强度最高的峰作为基准", expanded=True):
             # 添加主峰和邻近峰标注
             col1, col2 = st.columns(2)
             with col1:
@@ -383,25 +404,23 @@ class Featuremap():
                     step=0.1
                 )
                 self.neighbour_limit = st.number_input(
-                    "阈值控制(%)[根据峰强度来进行筛选]",
+                    "强度阈值控制(%)",
                     min_value=0.00,
                     value=3.00,
                     max_value=100.00,
-                    step=0.01
+                    step=0.01,
+                    help="是为修饰邻近峰的阈值,单位为%。如果该峰的强度低于该阈值,则不会被视为邻近峰。"
                 )
             with col2:
-                st.markdown("**注**:峰之间的距离可以体现其PTMs信息")
+                st.markdown("**help**:峰之间的距离可以体现其PTMs信息")
                 st.markdown("常见的PTMs修饰有:")
                 st.markdown("• **15**: 甲基化")
-                st.markdown("或许可以展示为一个表格")
+
 
     def _PTMs_DIY(self):
         """自定义PTMs质量差匹配规则"""
-        with st.expander("自定义PTMs信息匹配"):
-            # 初始化session状态
-            
+        with st.expander("**自定义PTMs匹配库**"):
             col_add, col_del, _ = st.columns([1,1,3])
-
             with col_add:
                 if st.button("➕ 添加PTMs规则", help="最多支持10条规则"):
                     if len(self.ptms) < 10:
@@ -411,6 +430,7 @@ class Featuremap():
                     if len(self.ptms) > 1:
                         self.ptms.pop()
             #先给出默认的内容
+
             updated_entries = []
             
             for i, entry in enumerate(self.ptms):
@@ -434,17 +454,34 @@ class Featuremap():
                     )
                 updated_entries.append({"mass_diff": new_mass, "name": new_name})  # 正确追加新条目
             self.ptms= updated_entries  # 最后统一更新
-            if st.button("应用PTMS规则", type="primary"):
-                ptms_rules = {round(entry["mass_diff"],4): entry["name"] 
-                                for entry in self.ptms}
-                st.success(f"已应用{len(ptms_rules)}条PTMs匹配规则")
+            
+            ptm_text = st.text_area(
+                '批量输入PTMs规则', 
+                value='''示例:[
+                    {"mass_diff": 15.9949, "name": "氧化"},
+                    {"mass_diff": 42.0105, "name": "乙酰化"}
+                ]    注意:这里的输入会对前面的规则进行覆盖!'''
+            )
+            if st.button("批量输入"):
+                try:
+                    if ptm_text.strip():
+                        self.ptms = json.loads(ptm_text)
+                        st.success("PTMS规则解析成功")
+                except Exception as e:
+                    st.error(f"解析失败: {str(e)}，请确保输入格式为合法JSON数组")
+                    st.json('''正确格式示例：
+                    [
+                        {"mass_diff": 15.9949, "name": "氧化"},
+                        {"mass_diff": 42.0105, "name": "乙酰化"}
+                    ]''')
+
             self.ppm_threshold = st.number_input(
                 "匹配精度阈值 (ppm)",
                 min_value=0.0,
                 max_value=100.0,
                 value=5.0,
                 step=0.01,
-                help="仅显示与当前峰质量最接近的匹配结果"
+                help="若精度高于该阈值,则认为超出质谱精度容忍范围,无匹配的修饰"
             )
 
 #----------------后端计算----------------
@@ -566,6 +603,7 @@ class Featuremap():
             lambda x: f"http://{local_ip}:8000/topmsv/visual/proteins.html?folder=../../toppic_prsm_cutoff/data_js&prsm_id={x}"
         )
         return result_df
+        
     # 计算所有PTMS规则的ppm值
     def find_closest_ptms(row):
         """
