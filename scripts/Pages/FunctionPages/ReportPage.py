@@ -17,10 +17,15 @@ class ReportPage():
         if not st.session_state.get('user_select_file'):
             st.error("请先选择送样信息!")
             return
+
         else:
             selected_file = st.session_state["user_select_file"]   
+            if not os.path.exists(selected_file):
+                st.error("文件不存在!")
+                return
+                
             file_suffix = os.path.splitext(selected_file)[1]
-            
+
             if file_suffix == ".pptx":
                 with open(selected_file, 'rb') as file:
                     st.download_button(

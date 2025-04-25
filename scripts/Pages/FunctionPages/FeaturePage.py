@@ -8,10 +8,13 @@ import os
 
 class Featuremap():
     def __init__(self):
+        #作图初始化
         self.df = None
         self.time_range = (300,1000)      # 积分时间范围
         self.mass_range = (300,1000)     # 积分质量范围 
         self.log_scale = 'None'      # 强度显示方式
+
+        #数据读取列名初始化
         self.column_map = {
         'feature': ['Feature_ID', 'Feature ID'],
         'mass': ['Mass', 'Monoisotopic_mass', 'Precursor_mz'],
@@ -27,148 +30,42 @@ class Featuremap():
         self.time_col = None  # 实际时间列名
         self.intensity_col = None  # 实际强度列名
 
+        #PTMs匹配参数初始化
         self.neighbor_range = 20  # 默认邻近峰质量范围
         self.neighbour_limit = 0  # 默认邻近峰强度阈值
+        self.ptms = [{"mass_diff": 15.994915, "name": "氧化"},
+                            {"mass_diff": 42.010565, "name": "乙酰化"}]  # 存储用户输入的PTMs
+        self.ppm_threshold = 5.00
+
     def run(self):
         self.show_page()
 
     def show_page(self):
         st.header("**MS1 Featuremap**")
         if not self._validate_selection():
-            return
+            return st.error("请选取一个文件进行分析！")
 
         if self._load_data():
             with st.container():
-                self._setup_controls()
+                self._featuremap_widgets()
                 self._plot_heatmap()
-        
+                #调用积分范围选择的小组件
             with st.container():
-                # 质量范围和时间范围设置容器
-                with st.expander("**积分范围手动设置**"):
-                    manual=st.checkbox("手动设置积分范围", value=False, key='manual')
-                    if manual:
-                        with st.container():
-                            col1, col2 = st.columns(2)
-                            # 质量范围设置列
-                            with col1:
-                                st.write("质量范围设置")
-                                mass_min0 = float(self.df[self.mass_col].min())
-                                mass_max0 = float(self.df[self.mass_col].max())
-                                mass_max = st.number_input("积分质量上界", 
-                                    min_value=mass_min0, 
-                                    max_value=mass_max0, 
-                                    value=mass_max0,
-                                    key='mass_max')
-                                mass_min = st.number_input("积分质量下界", 
-                                    min_value=mass_min0, 
-                                    max_value=mass_max0, 
-                                    value=mass_min0,
-                                    key='mass_min')
-                                self.mass_range = (mass_min, mass_max)
-
-                            # 时间范围设置列
-                            with col2:
-                                st.write("时间范围设置")
-                                time_min0 = float(self.df[self.time_col].min())
-                                time_max0 = float(self.df[self.time_col].max())
-                                time_max = st.number_input("积分时间上界", 
-                                                        min_value=time_min0, 
-                                                        max_value=time_max0, 
-                                                        value=time_max0,
-                                                        key='time_max')
-                                time_min = st.number_input("积分时间下界", 
-                                                        min_value=time_min0, 
-                                                        max_value=time_max0, 
-                                                        value=time_min0,
-                                                        key='time_min')
-
-                                self.time_range = (time_min, time_max)
-                
-                # 重新处理积分数据并绘图
-                integrated_data = self._process_integration()
-                self._plot_spectrum(integrated_data)
+                if self.start_time_col and self.end_time_col:
+                    self._integrate_widget()
+                    # 重新处理积分数据并绘图
+                    integrated_data = self._process_integration()
+                    selected_mass = self._plot_spectrum(integrated_data)
+                    # 将邻近峰组件移动到主流程
+                    if selected_mass is not None:
+                        self._near_peak_widget(integrated_data)
+                        self._PTMs_DIY()
+                        neighbor = self._near_peak_process(selected_mass, integrated_data)
+                        self._near_peak_show(selected_mass,neighbor)
+                        self._request_feature_widget()
 
 
-    
-                featureid=st.number_input("Prsm查询:根据输入的Feature ID来查找prsm", key='neighbor_range')
-                if st.button("查询"):
-                    prsmid=self._get_prsm_id(featureid)
-                    st.write(prsmid["URL"])
-        self._PTMS_self_design()         
-
-    def _setup_controls(self):
-        """核心控制组件"""
-        with st.expander("**基本设置**"):
-            self.log_scale = st.selectbox(
-                "强度处理方式",
-                options=['log10','None', 'log2', 'ln','sqrt'],
-                index=0
-            )
-            self.binx=st.number_input("x 轴像素",500)
-            self.biny=st.number_input("y 轴像素",1000)
-            self.data_limit = st.number_input(
-                "显示数据点数量", 
-                min_value=100, 
-                max_value=9999, 
-                value=1000,
-                help="默认显示强度最高的1000个数据点"
-            )
-
-        with st.expander("**高级配色设置**"):
-            self.use_custom = st.checkbox("启用自定义配色")
-            
-            if self.use_custom:
-                st.markdown("**颜色节点配置**")
-                self.custom_colors = []
-                
-                # 初始化session_state
-                if 'color_nodes' not in st.session_state:
-                    st.session_state.color_nodes = 3  # 默认3个节点
-                
-                # 节点数量控制
-                cols = st.columns([1,1,2])
-                with cols[0]:
-                    if st.button("➕ 添加节点") and st.session_state.color_nodes < 6:
-                        st.session_state.color_nodes += 1
-                with cols[1]:
-                    if st.button("➖ 减少节点") and st.session_state.color_nodes > 2:
-                        st.session_state.color_nodes -= 1
-                # 动态生成颜色选择器
-                for i in range(st.session_state.color_nodes):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        color = st.color_picker(f"节点{i+1} 颜色", 
-                                            value="#FF0000" if i==0 else "#0000FF" if i==1 else "#00FF00",
-                                            key=f"color_{i}")
-                    with col2:
-                        position = st.number_input(f"节点{i+1} 位置", 
-                                                min_value=0.0, 
-                                                max_value=1.0,
-                                                value=float(i)/(st.session_state.color_nodes-1) if st.session_state.color_nodes>1 else i,
-                                                step=0.01,
-                                                key=f"pos_{i}")
-                    self.custom_colors.append([position, color])
-                self.custom_colors.sort(key=lambda x: x[0])
-                self.color_scale = [[pos, color] for pos, color in self.custom_colors]
-            else:
-                self.color_scale = [[0.00, "#FFFFFF"], [0.4, "#0000FF"], [0.5, "#FF0000"], [1.00, "#FF0000"]]
-
-    def _process_integration(self):
-        try:
-            time_mask = self.df[self.time_col].between(*sorted(self.time_range))
-            mass_mask = self.df[self.mass_col].between(*sorted(self.mass_range))
-            integrated = self.df[time_mask & mass_mask].groupby(self.mass_col).agg({
-    self.intensity_col: 'sum',
-    self.feature_col: lambda x: list(x.unique())
-}).reset_index()
-            if integrated.empty:
-                st.warning("积分区间无有效数据，请调整范围设置")
-                return None
-            return integrated
-            
-        except Exception as e:
-            st.error(f"数据处理失败: {str(e)}")
-            return None
+#-------------------绘图组件---------------------
 
     def _plot_heatmap(self):
         """Visualize features as time-range bars with transparency"""
@@ -193,7 +90,7 @@ class Featuremap():
         ),
         hoverinfo='text',  
         width=1.6
-    ))
+        ))
 
         # Axis formatting
         fig.update_layout(
@@ -209,12 +106,11 @@ class Featuremap():
                 showgrid=True,
                 gridcolor='rgba(255,255,255,0.2)'
             ),
-        #TODO :将悬浮的信息显示添加回来!
             hovermode='closest',
         )
         fig.update_layout(
         dragmode='select',  
-    )
+        )
         # 最新版Streamlit事件处理
         event_data = st.plotly_chart(fig, 
             key="feature_heatmap",
@@ -296,14 +192,180 @@ class Featuremap():
                     selected_mass = selected_data.loc[selected_data['Normalized Intensity'].idxmax(), self.mass_col]
                 else:
                     st.warning("选择范围内无有效数据")
-                    return
+                    return None
+                return selected_mass  
             
             except (StopIteration, KeyError):
-                return
+                return None
         
-        self._near_peak_widget(data)
-        if event_data.selection:
-            self._near_peak_show(data, selected_mass)
+        # self._near_peak_widget(data)
+        # if event_data.selection:
+        #     self._near_peak_show(data, selected_mass)
+
+
+    def _near_peak_show(self, selected_mass, neighbors):
+        """
+        根据widget所给出的参数,进行临近峰的展示
+        Args:
+            neighbors (DataFrame): 筛选后的邻近峰数据
+            selected_mass (float): 当前选中的峰的质量
+        """
+        # 合并PTMS匹配逻辑到展示方法
+        if not neighbors.empty and self.ptms:
+            # 定义内部匹配函数
+            def find_closest_ptms(row):
+                mass_diff = abs(row['mass_diff'])
+                if mass_diff == 0:
+                    return ("", float('inf'))
+                
+                ppm_values = [
+                    (ptm['name'], abs(abs(mass_diff) - abs(ptm['mass_diff'])) / selected_mass * 1e6)
+                    for ptm in self.ptms
+                ]
+                best_match = min(ppm_values, key=lambda x: x[1]) if ppm_values else ("", float('inf'))
+                # 新增阈值判断：仅当ppm低于阈值时显示修饰名称
+                return (best_match[0], best_match[1]) if best_match[1] <= self.ppm_threshold else ("", best_match[1])
+
+            # 执行匹配计算
+            results = neighbors.apply(find_closest_ptms, axis=1)
+            neighbors[['匹配修饰', 'ppm']] = pd.DataFrame(results.tolist(), index=neighbors.index)
+            neighbors['ppm'] = neighbors['ppm'].round(2)
+
+        # 显示处理后的数据
+        if not neighbors.empty and self.mass_col and self.feature_col:
+            display_columns = {
+                self.mass_col: '质量 (Da)',
+                'mass_diff': '质量差',
+                '匹配修饰': 'PTMS修饰',
+                'ppm': '匹配精度(ppm)',
+                self.feature_col: 'Feature ID'
+            }
+            
+            # 确保列存在并格式化ppm
+            valid_columns = [col for col in display_columns.keys() if col in neighbors.columns]
+            neighbors_diff = neighbors[valid_columns].rename(columns=display_columns)
+            neighbors_diff['匹配精度(ppm)'] = neighbors_diff['匹配精度(ppm)'].round(2)
+            
+            st.write("**邻近峰信息**")
+            st.dataframe(neighbors_diff)
+            return neighbors_diff
+        else:
+            st.warning("在指定范围内未找到邻近峰")
+
+
+#-------------------控制组件---------------------
+    def _featuremap_widgets(self):
+        """核心控制组件"""
+        with st.expander("**基本设置**"):
+            self.log_scale = st.selectbox(
+                "强度处理方式",
+                options=['log10','None', 'log2', 'ln','sqrt'],
+                index=0
+            )
+            self.binx=st.number_input("x 轴像素",500)
+            self.biny=st.number_input("y 轴像素",1000)
+            self.data_limit = st.number_input(
+                "显示数据点数量", 
+                min_value=100, 
+                max_value=9999, 
+                value=1000,
+                help="默认显示强度最高的1000个数据点"
+            )
+
+        with st.expander("**高级配色设置**"):
+            self.use_custom = st.checkbox("启用自定义配色")
+            
+            if self.use_custom:
+                st.markdown("**颜色节点配置**")
+                self.custom_colors = []
+                
+                # 初始化session_state
+                if 'color_nodes' not in st.session_state:
+                    st.session_state.color_nodes = 3  # 默认3个节点
+                
+                # 节点数量控制
+                cols = st.columns([1,1,2])
+                with cols[0]:
+                    if st.button("➕ 添加节点") and st.session_state.color_nodes < 6:
+                        st.session_state.color_nodes += 1
+                with cols[1]:
+                    if st.button("➖ 减少节点") and st.session_state.color_nodes > 2:
+                        st.session_state.color_nodes -= 1
+                # 动态生成颜色选择器
+                for i in range(st.session_state.color_nodes):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        color = st.color_picker(f"节点{i+1} 颜色", 
+                                            value="#FF0000" if i==0 else "#0000FF" if i==1 else "#00FF00",
+                                            key=f"color_{i}")
+                    with col2:
+                        position = st.number_input(f"节点{i+1} 位置", 
+                                                min_value=0.0, 
+                                                max_value=1.0,
+                                                value=float(i)/(st.session_state.color_nodes-1) if st.session_state.color_nodes>1 else i,
+                                                step=0.01,
+                                                key=f"pos_{i}")
+                    self.custom_colors.append([position, color])
+                self.custom_colors.sort(key=lambda x: x[0])
+                self.color_scale = [[pos, color] for pos, color in self.custom_colors]
+            else:
+                self.color_scale = [[0.00, "#FFFFFF"], [0.4, "#0000FF"], [0.5, "#FF0000"], [1.00, "#FF0000"]]
+    
+    def _integrate_widget(self):
+        """手动设置积分范围--小组件"""
+        with st.container():
+            # 质量范围和时间范围设置容器
+            with st.expander("**积分范围手动设置**"):
+                manual=st.checkbox("手动设置积分范围", value=False, key='manual')
+                if manual:
+                    with st.container():
+                        col1, col2 = st.columns(2)
+                        # 质量范围设置列
+                        with col1:
+                            st.write("质量范围设置")
+                            mass_min0 = float(self.df[self.mass_col].min())
+                            mass_max0 = float(self.df[self.mass_col].max())
+                            mass_max = st.number_input("积分质量上界", 
+                                min_value=mass_min0, 
+                                max_value=mass_max0, 
+                                value=mass_max0,
+                                key='mass_max')
+                            mass_min = st.number_input("积分质量下界", 
+                                min_value=mass_min0, 
+                                max_value=mass_max0, 
+                                value=mass_min0,
+                                key='mass_min')
+                            self.mass_range = (mass_min, mass_max)
+
+                        # 时间范围设置列
+                        with col2:
+                            st.write("时间范围设置")
+                            time_min0 = float(self.df[self.time_col].min())
+                            time_max0 = float(self.df[self.time_col].max())
+                            time_max = st.number_input("积分时间上界", 
+                                                    min_value=time_min0, 
+                                                    max_value=time_max0, 
+                                                    value=time_max0,
+                                                    key='time_max')
+                            time_min = st.number_input("积分时间下界", 
+                                                    min_value=time_min0, 
+                                                    max_value=time_max0, 
+                                                    value=time_min0,
+                                                    key='time_min')
+
+                            self.time_range = (time_min, time_max)
+
+    def _request_feature_widget(self):
+        """
+        根据featureid来给出prsm的链接信息!
+        """
+        with st.expander("**Feature请求**", expanded=True):
+            featureid=st.number_input("Prsm查询:根据输入的Feature ID来查找prsm", key='neighbor_range')
+            if st.button("查询"):
+                prsmid=self._get_prsm_id(featureid)
+                # 添加排序逻辑：按E-value降序排列
+                prsmid_sorted = prsmid.sort_values(by='E-value', ascending=True).reset_index(drop=True)
+                st.write(prsmid_sorted[['URL', 'E-value']])  # 显示排序后的结果
 
     def _near_peak_widget(self, data):
         """
@@ -328,30 +390,64 @@ class Featuremap():
                     step=0.01
                 )
             with col2:
-                st.markdown("**注**:峰之间的距离可以体现其PTMS信息")
-                st.markdown("常见的PTMS修饰有:")
+                st.markdown("**注**:峰之间的距离可以体现其PTMs信息")
+                st.markdown("常见的PTMs修饰有:")
                 st.markdown("• **15**: 甲基化")
                 st.markdown("或许可以展示为一个表格")
 
+    def _PTMs_DIY(self):
+        """自定义PTMs质量差匹配规则"""
+        with st.expander("自定义PTMs信息匹配"):
+            # 初始化session状态
+            
+            col_add, col_del, _ = st.columns([1,1,3])
 
-    def _near_peak_show(self, data, selected_mass):
-            # 查找并添加邻近峰
-        neighbors = self._find_nearest_peaks(selected_mass, data)
-        st.write(f"选中质量: {selected_mass:.4f} Da")
-        if not neighbors.empty:
-            st.write("**邻近峰信息**")
-            st.write(f"选中质量: {selected_mass:.4f} Da")
-            # 显示包含PrSM ID的表格
-            # 优化显示列名和格式
-            display_columns = {
-                'Monoisotopic_mass': '质量 (Da)',
-                'mass_diff': '质量差',
-                'PrSM_ID': 'PrSM ID'
-            }
-            neighbors_display = neighbors[['Monoisotopic_mass', 'mass_diff','Feature_ID']].rename(columns=display_columns)
-            st.write(neighbors_display)
-        else:
-            st.warning("在指定范围内未找到邻近峰")
+            with col_add:
+                if st.button("➕ 添加PTMs规则", help="最多支持10条规则"):
+                    if len(self.ptms) < 10:
+                        self.ptms.append({"mass_diff": 0.0, "name": ""})
+            with col_del:
+                if st.button("➖ 删除最后一条", help="至少保留一条规则"):
+                    if len(self.ptms) > 1:
+                        self.ptms.pop()
+            #先给出默认的内容
+            updated_entries = []
+            
+            for i, entry in enumerate(self.ptms):
+                cols = st.columns([2,3])
+                with cols[0]:
+                    new_mass = st.number_input(
+                        f"质量差 (Da) #{i+1}",
+                        min_value=-1000.0,
+                        max_value=1000.0,
+                        value=entry["mass_diff"],
+                        step=0.0001,
+                        format="%.4f",
+                        key=f"ptms_mass_{i}"
+                    )
+                with cols[1]:
+                    new_name = st.text_input(
+                        f"修饰类型 #{i+1}",
+                        value=entry["name"],
+                        placeholder="例如：磷酸化",
+                        key=f"ptms_name_{i}"
+                    )
+                updated_entries.append({"mass_diff": new_mass, "name": new_name})  # 正确追加新条目
+            self.ptms= updated_entries  # 最后统一更新
+            if st.button("应用PTMS规则", type="primary"):
+                ptms_rules = {round(entry["mass_diff"],4): entry["name"] 
+                                for entry in self.ptms}
+                st.success(f"已应用{len(ptms_rules)}条PTMs匹配规则")
+            self.ppm_threshold = st.number_input(
+                "匹配精度阈值 (ppm)",
+                min_value=0.0,
+                max_value=100.0,
+                value=5.0,
+                step=0.01,
+                help="仅显示与当前峰质量最接近的匹配结果"
+            )
+
+#----------------后端计算----------------
 
     def _apply_scale(self, series):
         """应用强度转换并归一化"""
@@ -382,6 +478,7 @@ class Featuremap():
             st.warning("⚠️ 请先选择数据文件夹")
             return False
         return True
+
     def _load_data(self):
         """数据加载与校验"""
 
@@ -424,7 +521,7 @@ class Featuremap():
             st.error(f"⛔ 数据加载失败: {str(e)}")
             return False
 
-    def _find_nearest_peaks(self, target_mass, data):
+    def _near_peak_process(self, target_mass, data):
         """查找指定质量附近的邻近峰"""
         if data.empty or pd.isna(target_mass):
             return pd.DataFrame()
@@ -435,7 +532,7 @@ class Featuremap():
         neighbors = data[
             (data[mass_col].between(lower_bound, upper_bound)) &
             (data["Normalized Intensity"] >= self.neighbour_limit) # 排除主峰
-        ].copy()
+            ].copy()
 
         if neighbors.empty:
             return neighbors
@@ -469,62 +566,41 @@ class Featuremap():
             lambda x: f"http://{local_ip}:8000/topmsv/visual/proteins.html?folder=../../toppic_prsm_cutoff/data_js&prsm_id={x}"
         )
         return result_df
+    # 计算所有PTMS规则的ppm值
+    def find_closest_ptms(row):
+        """
+        pandas apply函数,是为一种操作规则
+        """
+        mass_diff = abs(row['mass_diff'])
+        if mass_diff == 0:
+            return ("", float('inf'))
+        
+        # 计算ppm：|Δm| / 目标质量 * 1e6
+        ppm_values = [
+            (ptm['name'], abs(abs(mass_diff) - abs(ptm['mass_diff'])) / target_mass * 1e6)
+            for ptm in self.ptms
+        ]
+        # 找到ppm最小的修饰
+        return min(ppm_values, key=lambda x: x[1]) if ppm_values else ("", float('inf'))
 
-    def _match_PTMS(self, mass):
-        """根据质量匹配PTMS信息"""
-        # 示例：简单的PTMS匹配
-        if mass > 100 and mass < 200:
-            return "15N"
-
-    def _PTMS_self_design(self):
-        """自定义PTMS质量差匹配规则"""
-        with st.expander("自定义PTMS信息匹配"):
-            # 初始化session状态
-            if 'ptms_entries' not in st.session_state:
-                st.session_state.ptms_entries = [
-                    {"mass_diff": 15.994915, "name": "氧化"},
-                    {"mass_diff": 42.010565, "name": "乙酰化"}
-                ]
-
-            col_add, col_del, _ = st.columns([1,1,3])
-
-            with col_add:
-                if st.button("➕ 添加PTMS规则", help="最多支持10条规则"):
-                    if len(st.session_state.ptms_entries) < 10:
-                        st.session_state.ptms_entries.append({"mass_diff": 0.0, "name": ""})
-            with col_del:
-                if st.button("➖ 删除最后一条", help="至少保留一条规则"):
-                    if len(st.session_state.ptms_entries) > 1:
-                        st.session_state.ptms_entries.pop()
-            #先给出默认的内容
-            updated_entries = []
+    def _process_integration(self):
+        try:
+            time_mask = self.df[self.time_col].between(*sorted(self.time_range))
+            mass_mask = self.df[self.mass_col].between(*sorted(self.mass_range))
+            integrated = self.df[time_mask & mass_mask].groupby(self.mass_col).agg({
+                self.intensity_col: 'sum',
+                self.feature_col: lambda x: list(x.unique())
+            }).reset_index()
+            if integrated.empty:
+                st.warning("积分区间无有效数据，请调整范围设置")
+                return None
+            return integrated
             
-            for i, entry in enumerate(st.session_state.ptms_entries):
-                cols = st.columns([2,3])
-                with cols[0]:
-                    new_mass = st.number_input(
-                        f"质量差 (Da) #{i+1}",
-                        min_value=-1000.0,
-                        max_value=1000.0,
-                        value=entry["mass_diff"],
-                        step=0.0001,
-                        format="%.4f",
-                        key=f"ptms_mass_{i}"
-                    )
-                with cols[1]:
-                    new_name = st.text_input(
-                        f"修饰类型 #{i+1}",
-                        value=entry["name"],
-                        placeholder="例如：磷酸化",
-                        key=f"ptms_name_{i}"
-                    )
-                updated_entries.append({"mass_diff": new_mass, "name": new_name})  # 正确追加新条目
-            st.session_state.ptms_entries = updated_entries  # 最后统一更新
-            if st.button("应用PTMS规则", type="primary"):
-                ptms_rules = {round(entry["mass_diff"],4): entry["name"] 
-                                for entry in st.session_state.ptms_entries}
-                st.success(f"已应用{len(ptms_rules)}条PTMS匹配规则")
+        except Exception as e:
+            st.error(f"数据处理失败: {str(e)}")
+            return None
 
+#------------------运行组件------------------
 if __name__ == "__main__":
     heatmap = Featuremap()
     heatmap.run()
