@@ -26,24 +26,27 @@ class ToppicShowPage():
     def run(self):
         self.show_toppic()
 
-    def _get_toppic_files(self):
-        """扫描用户目录获取所有TOPPIC文件"""
-        base_path = st.session_state['user_select_file']
-        if not base_path or not os.path.exists(base_path):
+    def _get_tsv_files(self):
+        """扫描用户目录获取所有tsv文件
+        并且构建文件映射表
+        """
+        selected_path = st.session_state['user_select_file']
+        sample_name=st.session_state['sample']
+        if not selected_path or not os.path.exists(selected_path):
             return None
         
         # 获取目录下所有文件
-        all_files = os.listdir(base_path)
+        all_files = os.listdir(selected_path)
 
         file_map = {}
         for filename in all_files:
             for suffix in self.file_suffixes.values():
-                file_map[suffix] = FileUtils.get_file_path(suffix)
+                file_map[suffix] = FileUtils.get_file_path(suffix,selected_path=selected_path,sample_name=st.session_state['sample'])
         return file_map
 
     def show_toppic(self):
-        report_path=FileUtils.get_html_report_path() 
-        file_map = self._get_toppic_files()
+        report_path=FileUtils.get_html_report_path(st.session_state['user_select_file'],st.session_state['sample']) 
+        file_map = self._get_tsv_files()
         col=st.columns(2)
         with col[0]:
             st.write("**详细文件查看**")
@@ -67,19 +70,44 @@ class ToppicShowPage():
             st.error(f"服务器启动失败: {str(e)}")
 
     def _display_tab_content(self, file_path, suffix):
-        df = pd.read_csv(file_path,sep='\t',skiprows=37)
-        filename = os.path.basename(file_path)
-            
+        # 动态检测空行位置
+        with open(file_path, 'r') as f:
+            empty_line_idx = None
+            for i, line in enumerate(f):
+                if not line.strip():  # 找到第一个空行
+                    empty_line_idx = i
+                    break
+
         try:
+            # 根据空行位置设置读取参数
+            df = pd.read_csv(
+                file_path,
+                sep='\t+',
+                skiprows=empty_line_idx + 1 if empty_line_idx is not None else 0,
+                header=0,  # 空行后的第一行为列名
+                on_bad_lines='warn',
+                dtype=str,
+                engine='python',
+                quoting=3
+            ).dropna(how='all')
+
+            if df.empty:
+                st.warning(f"文件 {os.path.basename(file_path)} 无有效数据")
+                return
+
+            filename = os.path.basename(file_path)
             row_count = df.shape[0]
             st.markdown(f"✈ **表格条目数：** `{row_count:,}` 条")
+            
             # 文件下载功能
             self._create_download_button(df, filename)
-            
             # 表格显示配置
             self._configure_aggrid(df, suffix, filename)
+            
+        except pd.errors.EmptyDataError:
+            st.error(f"文件 {os.path.basename(file_path)} 内容为空")
         except Exception as e:
-            st.error(f"加载 {filename} 失败: {str(e)}")
+            st.error(f"加载 {os.path.basename(file_path)} 失败: {str(e)}")
 
     def _create_download_button(self, df, filename):
         """创建下载按钮组件"""

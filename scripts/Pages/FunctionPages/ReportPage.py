@@ -58,14 +58,13 @@ class ReportPage():
             if st.button("重新选择文件", key="btn_reselect_show"):
                 st.session_state['user_select_file'] = None
                 st.rerun()
-            
-            # 取消注释并启用样品选择器
+            #实现sample选择的逻辑
             if st.session_state.get('user_select_file'):
                 file_suffix = os.path.splitext(st.session_state['user_select_file'])[1]
                 if file_suffix not in [".pptx", ".docx"]:
                     file_utils = FileUtils()
-                    samples = file_utils.list_samples()
-                    st.selectbox(  # 直接使用返回值，无需操作session_state
+                    samples = file_utils.list_samples(st.session_state['user_select_file'])
+                    st.session_state["sample"]=st.selectbox( 
                         "选择检测样品", 
                         samples,
                         key="sample_selection"  # 使用新的唯一key
@@ -74,11 +73,13 @@ class ReportPage():
     def show_report_page(self):
         
         #首先直接启动toppic服务
-        html_path = FileUtils.get_html_report_path()
+        html_path = FileUtils.get_html_report_path(st.session_state['user_select_file'],st.session_state['sample'])
         ServerControl.start_report_server(html_path)
         
         st.title("报告界面")
-        feature_files = self._get_feature_files(st.session_state['user_select_file'])
+        feature_files = [FileUtils.get_file_path("_ms1.feature",selected_path=st.session_state['user_select_file'],sample_name=st.session_state['sample']),
+                        FileUtils.get_file_path("_ms2.feature",selected_path=st.session_state['user_select_file'],sample_name=st.session_state['sample'])]
+        
         report_tab,feature_tab,toppic_tab = st.tabs(["主报告界面", "Featuremap", "TOPPIC结果"])
         
         with report_tab:
@@ -96,19 +97,9 @@ class ReportPage():
             toppic=ToppicPage.ToppicShowPage()
             toppic.run()
         
-    def _get_feature_files(self, files_path):
-        """获取用户目录下所有特征文件"""
-        if not os.path.exists(files_path):
-            return []
-        return [
-            os.path.join(files_path, f) 
-            for f in os.listdir(files_path) 
-            if f.endswith('.feature') or f.endswith('.FEATURE') 
-        ]
-
     def _count_report_files(self):
         """统计HTML报告相关文件数量"""
-        html_path = FileUtils.get_html_report_path()
+        html_path = FileUtils.get_html_report_path(st.session_state['user_select_file'],st.session_state['sample'])
         try:
             base_path = os.path.join(
                 html_path,

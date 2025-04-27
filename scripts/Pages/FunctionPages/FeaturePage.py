@@ -3,6 +3,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 import json
+import uuid  # <-- Add this import
 from .ServerUtils import ServerControl
 from .FileUtils import FileUtils
 import os
@@ -42,24 +43,23 @@ class Featuremap():
     def run(self):
         self.show_page()
 
-    def show_page(self):
+    def show_page(self):  
         st.header("**MS1 Featuremap**")
         if not self._validate_selection():
             return st.error("请选取一个文件进行分析！")
 
         if self._load_data():
-            st.markdown("`1.FeatureMap:展示特征的时间和质量分布! 请在图中进行框选以进行下一步`")
+            st.caption(" :material/star: **FeatureMap:** 展示特征的时间和质量分布! 请在图中进行框选以进行下一步!")
             with st.container(border=True):
                 self._featuremap_widgets()
                 self._plot_heatmap()
-                #调用积分范围选择的小组件
-            st.markdown("`2.Integrate:对Featuremap进行积分，得到指定范围的质谱图,请在图中框选以进行下一步!`")
+            st.caption(" :material/star: **2.Integratation:** 对Featuremap进行积分，得到指定范围的质谱图,请在图中框选以进行下一步!")
             with st.container(border=True):
                 if self.time_range and self.mass_range:
                     self._integrate_widget()
                     integrated_data = self._process_integration()
                     self.selected_mass = self._plot_spectrum(integrated_data)
-            st.markdown("`3.PTMs:对选定范围内最强的峰进行PTMs匹配!`")
+            st.caption(" :material/star: **3.PTMs:** 对选定范围内最强的峰进行PTMs匹配!")
             with st.container(border=True):
                 if self.selected_mass:
                     self._near_peak_widget(integrated_data)
@@ -420,41 +420,47 @@ class Featuremap():
     def _PTMs_DIY(self):
         """自定义PTMs质量差匹配规则"""
         with st.expander("**自定义PTMs匹配库**"):
+            # 在session_state中初始化PTMs存储
+            if 'ptms_list' not in st.session_state:
+                st.session_state.ptms_list = [{'uuid': str(uuid.uuid4()), **item} for item in self.ptms]
             col_add, col_del, _ = st.columns([1,1,3])
             with col_add:
-                if st.button("➕ 添加PTMs规则", help="最多支持10条规则"):
-                    if len(self.ptms) < 10:
-                        self.ptms.append({"mass_diff": 0.0, "name": ""})
+                if st.button("➕ 添加PTMs规则", help="最多支持10条规则") and len(st.session_state.ptms_list) < 10:
+                    st.session_state.ptms_list.append({"mass_diff": 0.0, "name": "", "uuid": str(uuid.uuid4())})
             with col_del:
-                if st.button("➖ 删除最后一条", help="至少保留一条规则"):
-                    if len(self.ptms) > 1:
-                        self.ptms.pop()
-            #先给出默认的内容
-
+                if st.button("➖ 删除选中项") and len(st.session_state.ptms_list) > 1:
+                    # 通过checkbox选择要删除的项
+                    selected_indices = [i for i, item in enumerate(st.session_state.ptms_list) if st.session_state.get(f'del_{item["uuid"]}')]
+                    for i in reversed(selected_indices):
+                        del st.session_state.ptms_list[i]
+            
             updated_entries = []
+            for item in st.session_state.ptms_list:
+                with st.container(border=True):
+                    cols = st.columns([2, 2, 1])
+                    with cols[0]:
+                        new_mass = st.number_input(
+                            "质量差 (Da)",
+                            min_value=-1000.0,
+                            value=item["mass_diff"],
+                            step=0.00001,  # 步长缩小到1e-5
+                            format="%.5f",  # 显示5位有效数字
+                            key=f"ptms_mass_{item['uuid']}"
+                        )
+                    with cols[1]:
+                        new_name = st.text_input(
+                            "修饰类型",
+                            value=item["name"],
+                            key=f"ptms_name_{item['uuid']}"
+                        )
+                    with cols[2]:
+                        st.markdown(f'<small style="color:#666">ID:{item["uuid"][-6:]}</small>', unsafe_allow_html=True)
+                        st.checkbox("删除", key=f"del_{item['uuid']}")
+                updated_entries.append({"mass_diff": new_mass, "name": new_name, "uuid": item['uuid']})
             
-            for i, entry in enumerate(self.ptms):
-                cols = st.columns([2,3])
-                with cols[0]:
-                    new_mass = st.number_input(
-                        f"质量差 (Da) #{i+1}",
-                        min_value=-1000.0,
-                        max_value=1000.0,
-                        value=entry["mass_diff"],
-                        step=0.0001,
-                        format="%.4f",
-                        key=f"ptms_mass_{i}"
-                    )
-                with cols[1]:
-                    new_name = st.text_input(
-                        f"修饰类型 #{i+1}",
-                        value=entry["name"],
-                        placeholder="例如：磷酸化",
-                        key=f"ptms_name_{i}"
-                    )
-                updated_entries.append({"mass_diff": new_mass, "name": new_name})  # 正确追加新条目
-            self.ptms= updated_entries  # 最后统一更新
-            
+            st.session_state.ptms_list = updated_entries
+            self.ptms = [{"mass_diff": e["mass_diff"], "name": e["name"]} for e in st.session_state.ptms_list]
+
             ptm_text = st.text_area(
                 '批量输入PTMs规则', 
                 value='''示例:[
@@ -518,11 +524,12 @@ class Featuremap():
 
     def _load_data(self):
         """数据加载与校验"""
-
+        selected_path = st.session_state['user_select_file']
+        sample_name = st.session_state['sample']
         try:
             # feature数据以及prsm数据的加载
-            feature_path = FileUtils.get_file_path('_ms1.feature')
-            prsm_path = FileUtils.get_file_path('_ms2_toppic_prsm_single.tsv')
+            feature_path = FileUtils.get_file_path('_ms1.feature',selected_path=selected_path,sample_name=sample_name)
+            prsm_path = FileUtils.get_file_path('_ms2_toppic_prsm_single.tsv',selected_path=selected_path,sample_name=sample_name)
             
             if not feature_path:
                 st.error("❌ 未找到特征文件")
@@ -533,8 +540,33 @@ class Featuremap():
                 st.error("❌ 未找到PrSM数据文件")
                 return False
 
-            self.df2 = pd.read_csv(prsm_path, sep='\t',skiprows=37)
+            #实现对tsv文件的动态读取
+            with open(prsm_path, 'r') as f:
+                empty_line_idx = None
+                for i, line in enumerate(f):
+                    if not line.strip():  # 找到第一个空行
+                        empty_line_idx = i
+                        break
 
+            try:
+                # 根据空行位置设置读取参数
+                self.df2 = pd.read_csv(
+                    prsm_path,
+                    sep='\t+',
+                    skiprows=empty_line_idx + 1 if empty_line_idx is not None else 0,
+                    header=0,  # 空行后的第一行为列名
+                    on_bad_lines='warn',
+                    dtype=str,
+                    engine='python',
+                    quoting=3
+                ).dropna(how='all')
+            except pd.errors.EmptyDataError:
+                st.error(f"文件 {os.path.basename(prsm_path)} 内容为空")
+            except Exception as e:
+                st.error(f"加载 {os.path.basename(prsm_path)} 失败: {str(e)}")
+
+
+            # 列名映射
             self.mass_col = self._find_column(self.column_map['mass'])
             if self.mass_col:
                 self.df[self.mass_col] = self.df[self.mass_col].astype(float)

@@ -3,6 +3,8 @@ from Pages import AdminPage, UserPage
 from Args import Args
 from DBUtils.DBUtils import DBUtils
 from Pages.FunctionPages.ReportPage import ReportPage
+import threading
+import time
 
 
 class LoginPage():

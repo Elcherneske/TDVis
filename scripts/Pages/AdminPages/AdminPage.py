@@ -26,7 +26,7 @@ class AdminPage():
         with modify_tab:
             config = {
                 "username": st.column_config.TextColumn("用户名"),
-                "role": st.column_config.SelectboxColumn("角色", options=["admin", "user"]),
+                "role": st.column_config.SelectboxColumn("角色", options=["user","admin"]),
                 "is_selected": st.column_config.CheckboxColumn("是否删除")
             }
             
@@ -58,7 +58,7 @@ class AdminPage():
             add_form = st.form("add_user_form")
             username = add_form.text_input("用户名")
             password = add_form.text_input("密码", type="password")
-            role = add_form.selectbox("角色", ["admin", "user"])
+            role = add_form.selectbox("角色", ["user", "admin"])
             # 添加用户按钮
             if add_form.form_submit_button("添加用户"):
                 self.db_utils.user_register(username, password, role)
@@ -100,7 +100,7 @@ class AdminPage():
             
             # File addition interface
             with st.form("add_file_form"):
-                new_file_path = st.text_input("文件路径")
+                new_file_path = st.text_input("文件路径", key="new_file_path")  # 添加唯一标识key
                 col1, col2 = st.columns([1, 4])
                 with col1:
                     if st.form_submit_button("添加单个文件"):
@@ -110,12 +110,13 @@ class AdminPage():
                             else:
                                 success = self.db_utils.add_file_address(selected_user, new_file_path)
                                 if success:
+                                    st.session_state.new_file_path = ""  # 清空输入框内容
                                     st.success(f"成功添加文件: {new_file_path}")
                                     st.rerun()
                                 else:
                                     st.error("添加文件失败")
                 with col2:
-                    if st.form_submit_button("批量添加文件"):
+                    if st.form_submit_button("批量添加文件",help="暂时只留了接口"):
                         # Implement batch file addition logic
                         pass
             
