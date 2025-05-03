@@ -100,18 +100,18 @@ class AdminPage():
             
             # File addition interface
             with st.form("add_file_form"):
-                new_file_path = st.text_input("文件路径", key="new_file_path")  # 添加唯一标识key
+                temp_file_path = st.text_input("文件路径", key="new_file_input")  # 改用中间变量
                 col1, col2 = st.columns([1, 4])
                 with col1:
                     if st.form_submit_button("添加单个文件"):
-                        if new_file_path:
-                            if new_file_path in current_files:
+                        if temp_file_path:
+                            if temp_file_path in current_files:
                                 st.error("文件已存在，请勿重复添加")
                             else:
-                                success = self.db_utils.add_file_address(selected_user, new_file_path)
+                                success = self.db_utils.add_file_address(selected_user, temp_file_path)
                                 if success:
-                                    st.session_state.new_file_path = ""  # 清空输入框内容
-                                    st.success(f"成功添加文件: {new_file_path}")
+                                    st.session_state.new_file_input = ""  # 清空中间变量
+                                    st.success(f"成功添加文件: {temp_file_path}")
                                     st.rerun()
                                 else:
                                     st.error("添加文件失败")

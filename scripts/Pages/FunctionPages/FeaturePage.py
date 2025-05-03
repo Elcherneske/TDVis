@@ -201,11 +201,10 @@ class Featuremap():
             
             except (StopIteration, KeyError):
                 return None
-        
+
         # self._near_peak_widget(data)
         # if event_data.selection:
         #     self._near_peak_show(data, selected_mass)
-
 
     def _near_peak_show(self, selected_mass, neighbors):
         """
@@ -244,18 +243,17 @@ class Featuremap():
                 'ppm': '匹配精度(ppm)',
                 self.feature_col: 'Feature ID'
             }
-            
+
             # 确保列存在并格式化ppm
             valid_columns = [col for col in display_columns.keys() if col in neighbors.columns]
             neighbors_diff = neighbors[valid_columns].rename(columns=display_columns)
             neighbors_diff['匹配精度(ppm)'] = neighbors_diff['匹配精度(ppm)'].round(2)
-            
+
             st.write("**邻近峰信息**")
             st.dataframe(neighbors_diff)
             return neighbors_diff
         else:
             st.warning("在指定范围内未找到邻近峰")
-
 
 #-------------------控制组件---------------------
     def _featuremap_widgets(self):
@@ -356,7 +354,6 @@ class Featuremap():
                                                     max_value=time_max0, 
                                                     value=time_min0,
                                                     key='time_min')
-
                             self.time_range = (time_min, time_max)
 
     def _request_feature_widget(self):
@@ -364,29 +361,29 @@ class Featuremap():
         根据featureid来给出prsm的链接信息!
         """
         with st.expander("**Prsm查询**", expanded=True):
-            featureid=st.number_input("输入您感兴趣的FeatureID", key='neighbor_range',help='会返回一个带有链接的表格,E-value越小,置信度越高')
+            featureid=st.number_input("输入您感兴趣的FeatureID",step=1, key='neighbor_range',help='会返回一个带有链接的表格,E-value越小,置信度越高')
             if st.button("查询"):
                 prsmid=self._get_prsm_id(featureid)
-                prsmid_sorted = prsmid.sort_values(by='E-value', ascending=True).reset_index(drop=True)
-                
-                # 配置列参数
-                st.dataframe(
-                    prsmid_sorted[['URL', 'E-value']],
-                    column_config={
-                        "URL": st.column_config.LinkColumn(
-                            "prsm链接",
-                            help="点击查看详细prsm信息",
-                            validate="^http",
-                            max_chars=100
-                        ),
-                        "E-value": st.column_config.NumberColumn(
-                            format="%.2e",
-                            disabled=True
-                        )
-                    },
-                    hide_index=True,
-                    use_container_width=True
-                )
+                # prsmid_sorted = prsmid.sort_values(by='E-value', ascending=True).reset_index(drop=True)
+                st.dataframe(prsmid)
+                st.dataframe(self.df2)
+                # st.dataframe(
+                #     prsmid_sorted[['URL', 'E-value']],
+                #     column_config={
+                #         "URL": st.column_config.LinkColumn(
+                #             "prsm链接",
+                #             help="点击查看详细prsm信息",
+                #             validate="^http",
+                #             max_chars=100
+                #         ),
+                #         "E-value": st.column_config.NumberColumn(
+                #             format="%.2e",
+                #             disabled=True
+                #         )
+                #     },
+                #     hide_index=True,
+                #     use_container_width=True
+                # )
 
     def _near_peak_widget(self, data):
         """
@@ -481,15 +478,11 @@ class Featuremap():
                         {"mass_diff": 42.0105, "name": "乙酰化"}
                     ]''')
 
-            self.ppm_threshold = st.number_input(
+            self.ppm_threshold = st.select_slider(
                 "匹配精度阈值 (ppm)",
-                min_value=0.0,
-                max_value=100.0,
-                value=5.0,
-                step=0.01,
+                options=[2,5,10],
                 help="若精度高于该阈值,则认为超出质谱精度容忍范围,无匹配的修饰"
             )
-
 #----------------后端计算----------------
 
     def _apply_scale(self, series):
@@ -621,20 +614,30 @@ class Featuremap():
 
     def _get_prsm_id(self, ID):
         """根据featureID查询prsmID"""
+        
         local_ip = ServerControl.get_local_ip()
         if self.df2.empty:
             return pd.DataFrame()
 
-        matches = self.df2[self.df2['Feature ID'] == ID]
+        # 添加列名检查和类型转换
+        feature_col = 'Feature ID' if 'Feature ID' in self.df2.columns else self.feature_col
+        prsm_col = 'Prsm ID' if 'Prsm ID' in self.df2.columns else 'Prsm_ID'
+        
+        # 转换ID类型为与数据框一致
+        try:
+            matches = self.df2[self.df2[feature_col].astype(int) == int(ID)]
+        except KeyError:
+            return pd.DataFrame()
+
         if matches.empty:
             return pd.DataFrame()
 
         # 创建包含链接的DataFrame
         result_df = matches.copy()
-        result_df['URL'] = result_df['Prsm ID'].apply(
+        result_df['URL'] = result_df[prsm_col].apply(
             lambda x: f"http://{local_ip}:8000/topmsv/visual/proteins.html?folder=../../toppic_prsm_cutoff/data_js&prsm_id={x}"
         )
-        return result_df
+        return result_df[['URL', 'E-value']] #if 'E-value' in result_df.columns else result_df
         
     # 计算所有PTMS规则的ppm值
     def find_closest_ptms(row):

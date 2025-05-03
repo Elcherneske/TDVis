@@ -6,7 +6,6 @@ from .FileUtils import FileUtils
 from .ServerUtils import ServerControl
 from . import FeaturePage,ToppicPage
 
-
 class ReportPage():
     def __init__(self):
         self.selected_file = None
@@ -75,7 +74,7 @@ class ReportPage():
         #首先直接启动toppic服务
         html_path = FileUtils.get_html_report_path(st.session_state['user_select_file'],st.session_state['sample'])
         ServerControl.start_report_server(html_path)
-        
+
         st.title("报告界面")
         feature_files = [FileUtils.get_file_path("_ms1.feature",selected_path=st.session_state['user_select_file'],sample_name=st.session_state['sample']),
                         FileUtils.get_file_path("_ms2.feature",selected_path=st.session_state['user_select_file'],sample_name=st.session_state['sample'])]

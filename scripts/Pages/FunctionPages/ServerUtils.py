@@ -6,6 +6,50 @@ import time
 import socket
 
 class ServerControl():
+    _active_server = None  # 新增类变量跟踪活动服务器
+    _active_monitor = None  # 新增监控线程跟踪
+
+    @staticmethod
+    def stop_active_server():
+        """关闭当前活动的服务器"""
+        if ServerControl._active_server:
+            try:
+                ServerControl._active_server.shutdown()
+                ServerControl._active_server.server_close()
+            except Exception as e:
+                pass
+            finally:
+                ServerControl._active_server = None
+
+    @staticmethod
+    def start_report_server(report_path):
+        """启动报告服务器并返回访问URL"""
+        try:
+            # 先关闭已有服务器
+            ServerControl.stop_active_server()
+
+            os.chdir(report_path)
+            ServerControl._active_server = ThreadingHTTPServer(
+                ('0.0.0.0', 8000),
+                ServerControl.ZJUHTTPHandler
+            )
+            
+            # 启动超时监控
+            ServerControl._active_monitor = threading.Thread(
+                target=ServerControl.server_monitor,
+                args=(ServerControl._active_server,),
+                daemon=True
+            )
+            ServerControl._active_monitor.start()
+            
+            threading.Thread(
+                target=ServerControl._active_server.serve_forever,
+                daemon=True
+            ).start()
+            
+            return ServerControl.get_url()
+        except Exception as e:
+            raise Exception(f"服务器启动失败: {str(e)}")
     @staticmethod
     def get_local_ip():
         """动态获取本机IP地址"""
@@ -18,31 +62,6 @@ class ServerControl():
         except Exception as e:
             return "localhost"
 
-    @staticmethod
-    def start_report_server(report_path):
-        """启动报告服务器并返回访问URL"""
-        try:
-            os.chdir(report_path)
-            server = ThreadingHTTPServer(
-                ('0.0.0.0', 8000),
-                ServerControl.ZJUHTTPHandler
-            )
-            
-            # 启动超时监控
-            threading.Thread(
-                target=ServerControl.server_monitor, 
-                args=(server,),
-                daemon=True
-            ).start()
-            
-            threading.Thread(
-                target=server.serve_forever,
-                daemon=True
-            ).start()
-            
-            return ServerControl.get_url()
-        except Exception as e:
-            raise Exception(f"服务器启动失败: {str(e)}")
     @staticmethod
     def get_url():
         """获取报告URL"""
